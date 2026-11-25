@@ -23,10 +23,11 @@ type ApiDeploy = { id: string; created_on: string; latest_stage?: { name?: strin
 
 const WAITING_MAX = 30 * 60 * 1000;
 // Cancelled and skipped deploys are their own status: never retried (Ruling J). A deploy still waiting
-// (idle, or a stage status we don't know) only counts as publishing while it is under 30 minutes old.
+// (idle, an earlier stage finished, or a stage status we don't know) only counts as publishing while it is
+// under 30 minutes old, so a stuck one never shows Publishing… forever.
 function deployStatus(d: ApiDeploy, now: number): Deploy["status"] {
   const { name, status } = d.latest_stage ?? {};
-  if (status === "success") return name === "deploy" ? "live" : "publishing";
+  if (status === "success" && name === "deploy") return "live";
   if (status === "failure") return "failed";
   if (status === "canceled" || status === "skipped") return "cancelled";
   if (status === "active") return "publishing";

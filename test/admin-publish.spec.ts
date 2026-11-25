@@ -38,13 +38,20 @@ describe("pages lib", () => {
     const f = vi.fn().mockResolvedValue(
       json({ result: [dep("deploy", "success", "a"), dep("build", "failure", "b"), dep("deploy", "canceled", "c"), dep("build", "active", "d"), dep("build", "success", "e")] }),
     );
-    const ds = await latestDeployments(withHook, f as unknown as typeof fetch);
+    const ds = await latestDeployments(withHook, f as unknown as typeof fetch, Date.parse("2026-11-25T05:11:00Z")); // fresh deploys
     expect(ds.map((d) => d.status)).toEqual(["live", "failed", "cancelled", "publishing", "publishing"]);
     expect(ds[0]).toEqual({ id: "a", createdOn: "2026-11-25T05:10:00Z", status: "live", endedOn: "2026-11-25T05:12:00Z" });
     expect(ds[3]!.endedOn).toBeNull();
     const [url, init] = f.mock.calls[0]!;
     expect(url).toBe("https://api.cloudflare.com/client/v4/accounts/acc/pages/projects/shop/deployments?env=production");
     expect((init as RequestInit).headers).toMatchObject({ Authorization: "Bearer tok" });
+  });
+
+  it("latestDeployments: a build that finished but never deployed is unknown after 30 minutes", async () => {
+    const created = Date.parse("2026-11-25T05:10:00Z");
+    const f = vi.fn().mockImplementation(async () => json({ result: [dep("build", "success", "stuck")] }));
+    expect((await latestDeployments(withHook, f as unknown as typeof fetch, created + 29 * 60_000))[0]!.status).toBe("publishing");
+    expect((await latestDeployments(withHook, f as unknown as typeof fetch, created + 30 * 60_000))[0]!.status).toBe("unknown");
   });
 
   it("latestDeployments: skipped and canceled are cancelled; idle counts as publishing only for 30 minutes", async () => {
