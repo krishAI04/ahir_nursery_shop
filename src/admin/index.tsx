@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Env } from "../env";
 import { AccessError, verifyAccessJwt } from "./access";
+import { adminRequest } from "./layout";
 import { mountPhotos } from "./photos";
 import { mountPrices } from "./prices";
 import { mountProductEdit } from "./product-edit";
@@ -15,6 +16,7 @@ export const admin: AdminApp = new Hono<AdminEnv>();
 const denied = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>No access</title></head><body style="font:18px system-ui;padding:24px"><p>You don't have access. Ask the owner to add your email.</p></body></html>`;
 
 admin.use("/admin", requireStaff());
+admin.use("/admin/*", (c, next) => adminRequest.run({ canPublish: !!c.env.PAGES_DEPLOY_HOOK }, next));
 admin.use("/admin/*", requireStaff());
 
 // Access cookies ride along on cross-site top-level POSTs, so refuse any POST from another origin.

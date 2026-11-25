@@ -88,7 +88,7 @@ describe("admin publish page", () => {
     const f = vi.spyOn(globalThis, "fetch").mockResolvedValue(json({}));
     const res = await post(withHook);
     expect(res.status).toBe(303);
-    expect(res.headers.get("location")).toBe("/admin/publish");
+    expect(res.headers.get("location")).toMatch(/^\/admin\/publish\?started=\d+$/);
     expect(f).toHaveBeenCalledTimes(1);
     expect(f.mock.calls[0]![0]).toBe(HOOK);
   });
@@ -113,5 +113,20 @@ describe("admin publish page", () => {
     const f = vi.spyOn(globalThis, "fetch");
     expect((await post(withHook, { "Sec-Fetch-Site": "cross-site" })).status).toBe(403);
     expect(f).not.toHaveBeenCalled();
+  });
+
+  it("after a click, says Publishing until a newer deployment appears", async () => {
+    const f = vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ result: [dep("deploy", "success")] }));
+    const at = (ms: number) => (async () => (await admin.request(`${BASE}/admin/publish?started=${ms}`, {}, withHook)).text())();
+    expect(await at(Date.now())).toContain("Publishing…");
+    f.mockResolvedValue(json({ result: [dep("build", "active")] }));
+    expect(await at(Date.now())).toContain("Publishing…");
+  });
+
+  it("shows the Publish site button on other admin pages only when the hook is set", async () => {
+    const on = await (await admin.request(`${BASE}/admin/products`, {}, withHook)).text();
+    expect(on).toContain('action="/admin/publish"');
+    const off = await (await admin.request(`${BASE}/admin/products`, {}, noHook)).text();
+    expect(off).not.toContain("/admin/publish");
   });
 });

@@ -1,5 +1,9 @@
 import { raw } from "hono/html";
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { Child } from "hono/jsx";
+
+/** Set per request by the admin middleware so every page shows the Publish button without passing it down. */
+export const adminRequest = new AsyncLocalStorage<{ canPublish: boolean }>();
 
 const css = `
 *{box-sizing:border-box}
@@ -13,7 +17,7 @@ button,.btn{display:inline-flex;align-items:center;min-height:44px;text-decorati
 input,select,textarea{font:inherit;min-height:44px;padding:6px 10px;max-width:100%}
 `;
 
-export function Layout(props: { title: string; email: string; canPublish?: boolean; children?: Child }) {
+export function Layout(props: { title: string; email: string; children?: Child }) {
   return (
     <>
       {raw("<!DOCTYPE html>")}
@@ -29,7 +33,11 @@ export function Layout(props: { title: string; email: string; canPublish?: boole
           <nav>
             <a href="/admin/products">Products</a>
             <a href="/admin/products?filter=needs-photo">Needs photo</a>
-            {props.canPublish && <a href="/admin/publish">Publish site</a>}
+            {adminRequest.getStore()?.canPublish && (
+              <form method="post" action="/admin/publish" style="margin-left:auto">
+                <button type="submit">Publish site</button>
+              </form>
+            )}
           </nav>
           <main>
             <h1>{props.title}</h1>

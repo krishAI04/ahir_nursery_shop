@@ -4,9 +4,12 @@ import type { AdminApp } from "./index";
 
 const UNKNOWN: Status = { kind: "unknown", text: "Couldn't check the site status right now" };
 
+const PUBLISHING: Status = { kind: "publishing", text: "Publishing…" };
+const PENDING_MS = 10 * 60 * 1000;
+
 function PublishPage(p: { email: string; status?: Status; error?: string }) {
   return (
-    <Layout title="Publish site" email={p.email} canPublish={!!p.status}>
+    <Layout title="Publish site" email={p.email}>
       {!p.status ? (
         <p>Publishing isn't set up yet.</p>
       ) : (
@@ -26,13 +29,17 @@ function PublishPage(p: { email: string; status?: Status; error?: string }) {
 export function mountPublish(admin: AdminApp) {
   admin.get("/admin/publish", async (c) => {
     if (!c.env.PAGES_DEPLOY_HOOK) return c.html(<PublishPage email={c.var.staffEmail} />);
-    const status = await latestDeployments(c.env).then(statusLine, () => UNKNOWN);
+    const ds = await latestDeployments(c.env).catch(() => null);
+    // Just after a click the new deployment may not exist yet: until one newer than the click shows up, say Publishing.
+    const started = Number(c.req.query("started"));
+    const pending = started > 0 && Date.now() - started < PENDING_MS && !(ds && ds[0] && Date.parse(ds[0].createdOn) >= started);
+    const status = pending ? PUBLISHING : ds ? statusLine(ds) : UNKNOWN;
     return c.html(<PublishPage email={c.var.staffEmail} status={status} />);
   });
 
   admin.post("/admin/publish", async (c) => {
     if (!c.env.PAGES_DEPLOY_HOOK) return c.notFound();
-    if (await triggerBuild(c.env)) return c.redirect("/admin/publish", 303);
+    if (await triggerBuild(c.env)) return c.redirect(`/admin/publish?started=${Date.now()}`, 303);
     const status = await latestDeployments(c.env).then(statusLine, () => UNKNOWN);
     return c.html(<PublishPage email={c.var.staffEmail} status={status} error="Couldn't start publishing, try again in a minute." />, 502);
   });
