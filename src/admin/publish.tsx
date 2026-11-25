@@ -7,9 +7,11 @@ const UNKNOWN: Status = { kind: "unknown", text: "Couldn't check the site status
 const PUBLISHING: Status = { kind: "publishing", text: "Publishing…" };
 const PENDING_MS = 10 * 60 * 1000;
 
-function PublishPage(p: { email: string; status?: Status; error?: string }) {
+// self: the GET address to reload while Publishing…, so the page updates itself (a POST result reloads as a GET).
+function PublishPage(p: { email: string; status?: Status; error?: string; self?: string }) {
+  const refresh = p.status?.kind === "publishing" ? `20;url=${p.self ?? "/admin/publish"}` : undefined;
   return (
-    <Layout title="Publish site" email={p.email}>
+    <Layout title="Publish site" email={p.email} refresh={refresh}>
       {!p.status ? (
         <p>Publishing isn't set up yet.</p>
       ) : (
@@ -34,7 +36,8 @@ export function mountPublish(admin: AdminApp) {
     const started = Number(c.req.query("started"));
     const pending = started > 0 && Date.now() - started < PENDING_MS && !(ds && ds[0] && Date.parse(ds[0].createdOn) >= started);
     const status = pending ? PUBLISHING : ds ? statusLine(ds) : UNKNOWN;
-    return c.html(<PublishPage email={c.var.staffEmail} status={status} />);
+    const self = started > 0 ? `/admin/publish?started=${started}` : "/admin/publish";
+    return c.html(<PublishPage email={c.var.staffEmail} status={status} self={self} />);
   });
 
   admin.post("/admin/publish", async (c) => {

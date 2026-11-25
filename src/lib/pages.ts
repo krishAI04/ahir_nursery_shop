@@ -33,9 +33,16 @@ export async function latestDeployments(env: Env, fetchImpl: typeof fetch = fetc
 }
 
 const clock = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit", hour12: true });
-const when = (d: Deploy) => clock.format(new Date(d.endedOn ?? d.createdOn)).replace(/\s/g, " ").toUpperCase();
+const day = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", day: "numeric", month: "short" });
+/** "10:42 AM" today in Kolkata, "25 Nov, 10:42 AM" on any other day. */
+const stamp = (at: Date, now: number) => {
+  const time = clock.format(at).replace(/\s/g, " ").toUpperCase();
+  const date = day.format(at);
+  return date === day.format(now) ? time : `${date}, ${time}`;
+};
 
-export function statusLine(ds: Deploy[]): Status {
+export function statusLine(ds: Deploy[], now = Date.now()): Status {
+  const when = (d: Deploy) => stamp(new Date(d.endedOn ?? d.createdOn), now);
   const [latest] = ds;
   if (!latest) return { kind: "unknown", text: "Couldn't check the site status right now" };
   if (latest.status === "publishing") return { kind: "publishing", text: "Publishing…" };

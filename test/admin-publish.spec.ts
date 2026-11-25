@@ -51,12 +51,21 @@ describe("pages lib", () => {
 describe("statusLine", () => {
   const d = (status: Deploy["status"], endedOn: string | null = "2026-11-25T05:12:00Z"): Deploy => ({ id: "x", createdOn: "2026-11-25T05:10:00Z", status, endedOn });
   it("publishing", () => expect(statusLine([d("publishing", null)])).toEqual({ kind: "publishing", text: "Publishing…" }));
-  it("live", () => expect(statusLine([d("live")])).toEqual({ kind: "live", text: "Live, updated 10:42 AM" }));
+  const today = Date.parse("2026-11-25T12:00:00Z");
+  const nextDay = Date.parse("2026-11-26T09:00:00Z"); // 2:30 PM on 26 Nov in Asia/Kolkata
+  it("live", () => expect(statusLine([d("live")], today)).toEqual({ kind: "live", text: "Live, updated 10:42 AM" }));
+  it("live on an earlier day includes the date", () =>
+    expect(statusLine([d("live")], nextDay)).toEqual({ kind: "live", text: "Live, updated 25 Nov, 10:42 AM" }));
+  it("the day is counted in Asia/Kolkata, not UTC", () =>
+    // 19:00 UTC on 25 Nov is still 25 Nov in UTC, but already 12:30 AM on 26 Nov in Kolkata
+    expect(statusLine([d("live")], Date.parse("2026-11-25T19:00:00Z")).text).toBe("Live, updated 25 Nov, 10:42 AM"));
   it("failed shows last live time", () =>
-    expect(statusLine([d("failed"), d("live")])).toEqual({
+    expect(statusLine([d("failed"), d("live")], today)).toEqual({
       kind: "failed",
       text: "Didn't go through, the old site is still live (updated 10:42 AM)",
     }));
+  it("failed on a later day dates the last live time", () =>
+    expect(statusLine([d("failed"), d("live")], nextDay).text).toBe("Didn't go through, the old site is still live (updated 25 Nov, 10:42 AM)"));
   it("unknown when empty", () => expect(statusLine([]).kind).toBe("unknown"));
 });
 
@@ -67,7 +76,8 @@ describe("admin publish page", () => {
   it("GET shows status and the button", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ result: [dep("deploy", "success")] }));
     const html = await (await get(withHook)).text();
-    expect(html).toContain("Live, updated 10:42 AM");
+    expect(html).toMatch(/Live, updated (25 Nov, )?10:42 AM/); // dated unless the test runs on 25 Nov 2026
+    expect(html).not.toContain('http-equiv="refresh"');
     expect(html).toContain("Publish site");
     expect(html).not.toContain("Try again");
   });
@@ -121,6 +131,16 @@ describe("admin publish page", () => {
     expect(await at(Date.now())).toContain("Publishing…");
     f.mockResolvedValue(json({ result: [dep("build", "active")] }));
     expect(await at(Date.now())).toContain("Publishing…");
+  });
+
+  it("while Publishing… the page refreshes itself every 20 seconds", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ result: [dep("build", "active")] }));
+    const html = await (await get(withHook)).text();
+    expect(html).toContain("Publishing…");
+    expect(html).toMatch(/<meta http-equiv="refresh" content="20(;url=\/admin\/publish)?"/);
+    const started = Date.now();
+    const after = await (await admin.request(`${BASE}/admin/publish?started=${started}`, {}, withHook)).text();
+    expect(after).toContain(`content="20;url=/admin/publish?started=${started}"`);
   });
 
   it("shows the Publish site button on other admin pages only when the hook is set", async () => {

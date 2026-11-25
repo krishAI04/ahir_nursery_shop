@@ -17,7 +17,7 @@ button,.btn{display:inline-flex;align-items:center;min-height:44px;text-decorati
 input,select,textarea{font:inherit;min-height:44px;padding:6px 10px;max-width:100%}
 `;
 
-export function Layout(props: { title: string; email: string; children?: Child }) {
+export function Layout(props: { title: string; email: string; refresh?: string; children?: Child }) {
   return (
     <>
       {raw("<!DOCTYPE html>")}
@@ -26,6 +26,7 @@ export function Layout(props: { title: string; email: string; children?: Child }
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           <title>{props.title}</title>
+          {props.refresh && <meta http-equiv="refresh" content={props.refresh} />}
           <style dangerouslySetInnerHTML={{ __html: css }} />
         </head>
         <body>
