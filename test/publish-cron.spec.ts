@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { runPublishCron } from "../src/cron/publish";
 import { db, schema } from "../src/db";
 import type { Env } from "../src/env";
@@ -18,6 +18,10 @@ const hookCalls = (f: ReturnType<typeof stub>) => f.mock.calls.filter(([u]) => S
 beforeEach(async () => {
   await db(env as unknown as Env).delete(schema.sitePublish);
 });
+afterEach(() => vi.restoreAllMocks());
+// Like stub, but the hook POST answers `hookStatus`.
+const hookFails = (deploys: unknown[], hookStatus = 500) =>
+  vi.fn(async (url: string | URL | Request) => (String(url) === HOOK ? json({}, hookStatus) : json({ result: deploys })));
 
 describe("runPublishCron", () => {
   it("nightly triggers one build", async () => {
@@ -83,6 +87,39 @@ describe("runPublishCron", () => {
     const logged = JSON.stringify(log.mock.calls);
     expect(logged).not.toContain("tok");
     expect(logged).not.toContain(HOOK);
-    log.mockRestore();
+    expect(log).toHaveBeenCalledWith("Pages API check failed", 500);
+  });
+
+  it("a network error on the check logs only the fixed text", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const f = vi.fn(async () => {
+      throw new Error(`fetch to ${HOOK} with tok failed`);
+    });
+    expect(await runPublishCron(CHECK, withHook, f as unknown as typeof fetch)).toBe("nothing");
+    expect(log.mock.calls).toEqual([["Pages API check failed"]]);
+  });
+
+  it("does not retry a cancelled or skipped deploy", async () => {
+    for (const status of ["canceled", "skipped"]) {
+      const f = stub([dep("x", "build", status), dep("ok", "deploy", "success")]);
+      expect(await runPublishCron(CHECK, withHook, f as unknown as typeof fetch)).toBe("nothing");
+      expect(hookCalls(f)).toBe(0);
+    }
+  });
+
+  it("a hook failure on retry keeps the retry available", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const deploys = [dep("bad", "build", "failure"), dep("ok", "deploy", "success")];
+    expect(await runPublishCron(CHECK, withHook, hookFails(deploys) as unknown as typeof fetch)).toBe("nothing");
+    expect(log).toHaveBeenCalledWith("Publish hook failed");
+    const f = stub(deploys);
+    expect(await runPublishCron(CHECK, withHook, f as unknown as typeof fetch)).toBe("retried");
+    expect(hookCalls(f)).toBe(1);
+  });
+
+  it("nightly logs a hook failure", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await runPublishCron(NIGHTLY, withHook, hookFails([]) as unknown as typeof fetch)).toBe("nightly");
+    expect(log).toHaveBeenCalledWith("Publish hook failed");
   });
 });
