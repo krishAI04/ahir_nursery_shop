@@ -12,14 +12,15 @@ export async function runPublishCron(cron: string, env: Env, fetchImpl: typeof f
   }
   if (cron !== "*/30 * * * *" || !env.CF_API_TOKEN || !env.CF_ACCOUNT_ID || !env.PAGES_PROJECT) return "nothing";
 
-  let newest;
+  let newest, previous;
   try {
-    [newest] = await latestDeployments(env, fetchImpl);
+    [newest, previous] = await latestDeployments(env, fetchImpl);
   } catch (e) {
     console.error("publish check failed:", e instanceof Error ? e.message : "unknown error"); // message holds the status code only
     return "nothing";
   }
-  if (newest?.status !== "failed") return "nothing";
+  // Only the first failure of a streak is retried; later ones wait for staff or the nightly build.
+  if (newest?.status !== "failed" || previous?.status === "failed") return "nothing";
 
   const d = db(env);
   const [row] = await d.select().from(schema.sitePublish).where(eq(schema.sitePublish.id, 1));

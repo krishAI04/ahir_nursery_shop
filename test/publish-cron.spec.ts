@@ -33,6 +33,18 @@ describe("runPublishCron", () => {
     expect(hookCalls(f)).toBe(1);
   });
 
+  it("first failure after a live deploy is retried", async () => {
+    const f = stub([dep("bad", "build", "failure"), dep("ok", "deploy", "success")]);
+    expect(await runPublishCron(CHECK, withHook, f as unknown as typeof fetch)).toBe("retried");
+    expect(hookCalls(f)).toBe(1);
+  });
+
+  it("a retry that fails again is not retried", async () => {
+    const f = stub([dep("bad2", "build", "failure"), dep("bad1", "build", "failure"), dep("ok", "deploy", "success")]);
+    expect(await runPublishCron(CHECK, withHook, f as unknown as typeof fetch)).toBe("nothing");
+    expect(hookCalls(f)).toBe(0);
+  });
+
   it("retries a new failure after an earlier one was retried", async () => {
     await runPublishCron(CHECK, withHook, stub([dep("bad1", "build", "failure")]) as unknown as typeof fetch);
     const f = stub([dep("bad2", "build", "failure")]);
