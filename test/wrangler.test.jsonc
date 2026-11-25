@@ -20,6 +20,8 @@
     "ACCESS_TEAM_DOMAIN": "",
     "ACCESS_AUD": "",
     "IMAGE_BASE_URL": "",
-    "SHOP_WHATSAPP": "919999999999"
+    "SHOP_WHATSAPP": "919999999999",
+    "CF_ACCOUNT_ID": "",
+    "PAGES_PROJECT": ""
   }
 }

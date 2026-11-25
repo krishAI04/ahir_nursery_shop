@@ -5,6 +5,7 @@ import { mountPhotos } from "./photos";
 import { mountPrices } from "./prices";
 import { mountProductEdit } from "./product-edit";
 import { mountProducts } from "./products";
+import { mountPublish } from "./publish";
 
 export type AdminEnv = { Bindings: Env; Variables: { staffEmail: string } };
 export type AdminApp = Hono<AdminEnv>;
@@ -59,3 +60,4 @@ mountProducts(admin);
 mountProductEdit(admin);
 mountPrices(admin);
 mountPhotos(admin);
+mountPublish(admin);

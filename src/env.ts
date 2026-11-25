@@ -7,4 +7,8 @@ export type Env = {
   ACCESS_AUD: string;
   IMAGE_BASE_URL: string;
   SHOP_WHATSAPP: string;
+  PAGES_DEPLOY_HOOK: string;
+  CF_API_TOKEN: string;
+  CF_ACCOUNT_ID: string;
+  PAGES_PROJECT: string;
 };

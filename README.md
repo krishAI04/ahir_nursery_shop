@@ -41,7 +41,13 @@ The import only creates; it never updates what is already there:
 6. Set `STOREFRONT_ORIGINS` to the real storefront address(es).
 7. Set `SHOP_WHATSAPP` in `wrangler.jsonc` to the shop's WhatsApp number: country code + number, digits only (e.g. `9198XXXXXXXX`).
 8. Import the catalogue: `npm run import -- --remote --dry-run`, then `npm run import -- --remote --yes`. The photos take about 50 minutes.
-9. `npx wrangler deploy`
+9. Publishing the storefront: create the Cloudflare Pages project for the storefront repo (build command `npm test && npm run build`), and add a Deploy Hook to it. Then:
+   - `npx wrangler secret put PAGES_DEPLOY_HOOK` (the deploy hook URL)
+   - `npx wrangler secret put CF_API_TOKEN` (an API token with Account, Cloudflare Pages: Read)
+   - set `CF_ACCOUNT_ID` and `PAGES_PROJECT` (the Pages project name) in `wrangler.jsonc`
+
+   Until `PAGES_DEPLOY_HOOK` is set, the admin hides the "Publish site" link.
+10. `npx wrangler deploy`
 
 ## Notes for staff
 
