@@ -17,7 +17,8 @@ button,.btn{display:inline-flex;align-items:center;min-height:44px;text-decorati
 input,select,textarea{font:inherit;min-height:44px;padding:6px 10px;max-width:100%}
 `;
 
-export function Layout(props: { title: string; email: string; refresh?: string; children?: Child }) {
+// hidePublish: the publish page leaves out the header button while a publish is running.
+export function Layout(props: { title: string; email: string; refresh?: string; hidePublish?: boolean; children?: Child }) {
   return (
     <>
       {raw("<!DOCTYPE html>")}
@@ -34,7 +35,7 @@ export function Layout(props: { title: string; email: string; refresh?: string; 
           <nav>
             <a href="/admin/products">Products</a>
             <a href="/admin/products?filter=needs-photo">Needs photo</a>
-            {adminRequest.getStore()?.canPublish && (
+            {adminRequest.getStore()?.canPublish && !props.hidePublish && (
               <form method="post" action="/admin/publish" style="margin-left:auto">
                 <button type="submit">Publish site</button>
               </form>

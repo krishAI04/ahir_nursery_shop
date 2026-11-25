@@ -39,12 +39,23 @@ describe("pages lib", () => {
       json({ result: [dep("deploy", "success", "a"), dep("build", "failure", "b"), dep("deploy", "canceled", "c"), dep("build", "active", "d"), dep("build", "success", "e")] }),
     );
     const ds = await latestDeployments(withHook, f as unknown as typeof fetch);
-    expect(ds.map((d) => d.status)).toEqual(["live", "failed", "failed", "publishing", "publishing"]);
+    expect(ds.map((d) => d.status)).toEqual(["live", "failed", "cancelled", "publishing", "publishing"]);
     expect(ds[0]).toEqual({ id: "a", createdOn: "2026-11-25T05:10:00Z", status: "live", endedOn: "2026-11-25T05:12:00Z" });
     expect(ds[3]!.endedOn).toBeNull();
     const [url, init] = f.mock.calls[0]!;
     expect(url).toBe("https://api.cloudflare.com/client/v4/accounts/acc/pages/projects/shop/deployments?env=production");
     expect((init as RequestInit).headers).toMatchObject({ Authorization: "Bearer tok" });
+  });
+
+  it("latestDeployments: skipped and canceled are cancelled; idle counts as publishing only for 30 minutes", async () => {
+    const created = Date.parse("2026-11-25T05:10:00Z");
+    const f = vi.fn().mockImplementation(async () =>
+      json({ result: [dep("build", "skipped", "a"), dep("deploy", "canceled", "b"), dep("initialize", "idle", "c"), dep("queued", "weird", "d")] }),
+    );
+    const soon = await latestDeployments(withHook, f as unknown as typeof fetch, created + 29 * 60_000);
+    expect(soon.map((d) => d.status)).toEqual(["cancelled", "cancelled", "publishing", "publishing"]);
+    const late = await latestDeployments(withHook, f as unknown as typeof fetch, created + 30 * 60_000);
+    expect(late.map((d) => d.status)).toEqual(["cancelled", "cancelled", "unknown", "unknown"]);
   });
 });
 
@@ -67,6 +78,16 @@ describe("statusLine", () => {
   it("failed on a later day dates the last live time", () =>
     expect(statusLine([d("failed"), d("live")], nextDay).text).toBe("Didn't go through, the old site is still live (updated 25 Nov, 10:42 AM)"));
   it("unknown when empty", () => expect(statusLine([]).kind).toBe("unknown"));
+  it("failed with no earlier live deploy makes no old-site claim", () =>
+    expect(statusLine([d("failed"), d("failed")], today)).toEqual({ kind: "failed", text: "Didn't go through — the site isn't live yet" }));
+  it("cancelled is its own status and names the live time", () =>
+    expect(statusLine([d("cancelled"), d("live")], today)).toEqual({
+      kind: "cancelled",
+      text: "Publishing was cancelled — the old site is still live (updated 10:42 AM)",
+    }));
+  it("cancelled with nothing live yet", () =>
+    expect(statusLine([d("cancelled")], today)).toEqual({ kind: "cancelled", text: "Publishing was cancelled — the site isn't live yet" }));
+  it("a deploy of unknown state is unknown", () => expect(statusLine([d("unknown"), d("live")], today).kind).toBe("unknown"));
 });
 
 describe("admin publish page", () => {
@@ -141,6 +162,41 @@ describe("admin publish page", () => {
     const started = Date.now();
     const after = await (await admin.request(`${BASE}/admin/publish?started=${started}`, {}, withHook)).text();
     expect(after).toContain(`content="20;url=/admin/publish?started=${started}"`);
+  });
+
+  it("hides Publish site and Try again while publishing, header included", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ result: [dep("build", "active")] }));
+    const html = await (await get(withHook)).text();
+    expect(html).toContain("Publishing…");
+    expect(html).not.toContain('action="/admin/publish"');
+    expect(html).not.toContain("Try again");
+  });
+
+  it("ignores a ?started= in the future", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ result: [dep("deploy", "success")] }));
+    const future = Date.now() + 60 * 60 * 1000;
+    const html = await (await admin.request(`${BASE}/admin/publish?started=${future}`, {}, withHook)).text();
+    expect(html).toMatch(/Live, updated/);
+    expect(html).not.toContain(String(future));
+  });
+
+  it("never puts the hook URL or the API token in a page", async () => {
+    const secretHook = "https://hooks.test/deploy/HOOK-SECRET-7f3a";
+    const secret = { ...withHook, PAGES_DEPLOY_HOOK: secretHook, CF_API_TOKEN: "TOKEN-SECRET-91bc" } as Env;
+    const f = vi.spyOn(globalThis, "fetch");
+    const pages: string[] = [];
+    for (const answer of [[dep("deploy", "success")], [dep("build", "failure")], [dep("build", "active")]]) {
+      f.mockResolvedValue(json({ result: answer }));
+      pages.push(await (await get(secret)).text());
+    }
+    f.mockRejectedValue(new Error(`down ${secretHook} TOKEN-SECRET-91bc`));
+    pages.push(await (await get(secret)).text());
+    f.mockResolvedValue(json({}, 500));
+    pages.push(await (await post(secret)).text());
+    for (const html of pages) {
+      expect(html).not.toContain("HOOK-SECRET-7f3a");
+      expect(html).not.toContain("TOKEN-SECRET-91bc");
+    }
   });
 
   it("shows the Publish site button on other admin pages only when the hook is set", async () => {
