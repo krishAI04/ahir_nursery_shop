@@ -146,3 +146,9 @@ export const webhookEvents = sqliteTable("webhook_events", {
   id: text("id").primaryKey(), // Razorpay event id
   receivedAt: text("received_at").notNull(),
 });
+
+// Single row (id = 1): the last failed deploy the 30-minute check already retried.
+export const sitePublish = sqliteTable("site_publish", {
+  id: integer("id").primaryKey(),
+  lastRetriedDeployId: text("last_retried_deploy_id"),
+});

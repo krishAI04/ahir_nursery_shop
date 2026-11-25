@@ -43,7 +43,7 @@ describe("pages lib", () => {
     expect(ds[0]).toEqual({ id: "a", createdOn: "2026-11-25T05:10:00Z", status: "live", endedOn: "2026-11-25T05:12:00Z" });
     expect(ds[3]!.endedOn).toBeNull();
     const [url, init] = f.mock.calls[0]!;
-    expect(url).toBe("https://api.cloudflare.com/client/v4/accounts/acc/pages/projects/shop/deployments");
+    expect(url).toBe("https://api.cloudflare.com/client/v4/accounts/acc/pages/projects/shop/deployments?env=production");
     expect((init as RequestInit).headers).toMatchObject({ Authorization: "Bearer tok" });
   });
 });

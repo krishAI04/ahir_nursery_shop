@@ -16,7 +16,7 @@ type ApiDeploy = { id: string; created_on: string; latest_stage?: { name?: strin
 
 /** Newest first. Throws on a network error or non-2xx; the caller decides what to show. */
 export async function latestDeployments(env: Env, fetchImpl: typeof fetch = fetch): Promise<Deploy[]> {
-  const res = await fetchImpl(`https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/pages/projects/${env.PAGES_PROJECT}/deployments`, {
+  const res = await fetchImpl(`https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/pages/projects/${env.PAGES_PROJECT}/deployments?env=production`, {
     headers: { Authorization: `Bearer ${env.CF_API_TOKEN}` },
   });
   if (!res.ok) throw new Error(`Pages API ${res.status}`);
