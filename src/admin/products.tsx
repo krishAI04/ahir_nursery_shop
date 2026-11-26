@@ -245,7 +245,8 @@ export function mountProducts(admin: AdminApp) {
     }
     if (filter === "needs-photo") where.push("NOT EXISTS (SELECT 1 FROM product_images i WHERE i.product_id = p.id)");
     if (filter === "similar") where.push("p.representative_photo = 1");
-    // Candidates come from the small variants_unavailable_idx, so this doesn't visit every product (every product has a size).
+    // Candidates come from the small variants_unavailable_idx, so this doesn't visit every product.
+    // Products always keep at least one size (last-size guard + import), so zero-size products are intentionally not matched.
     if (filter === "out-of-stock")
       where.push(
         "p.id IN (SELECT v.product_id FROM variants v WHERE in_stock = 0 OR hidden = 1) AND NOT EXISTS (SELECT 1 FROM variants v WHERE v.product_id = p.id AND v.hidden = 0 AND v.in_stock = 1)",

@@ -106,11 +106,12 @@ describe("catalogue list reads stay small with a full-size catalogue", () => {
   });
 
   it("add-photo picker search reads well under 1,500 rows", async () => {
-    for (const path of ["/admin/add-photo?q=Plant%2000", "/admin/add-photo?q=plant"]) {
-      const { rows, body } = await measure(path);
-      expect(rows, path).toBeLessThan(1500);
-      if (path.endsWith("Plant%2000")) expect(body).toContain("Plant 00");
-    }
+    const prefix = await measure("/admin/add-photo?q=Plant%2000");
+    expect(prefix.rows).toBeLessThan(1500);
+    expect(prefix.body).toContain("Plant 00");
+    const lower = await measure("/admin/add-photo?q=plant");
+    expect(lower.rows).toBeLessThan(1500);
+    expect(lower.body).toContain("Plant 0");
   });
 });
 
