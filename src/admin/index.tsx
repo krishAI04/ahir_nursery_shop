@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Env } from "../env";
 import { AccessError, verifyAccessJwt } from "./access";
+import { mountAddPhoto } from "./add-photo";
 import { mountHelp } from "./help";
 import { adminRequest } from "./layout";
 import { mountPhotos } from "./photos";
@@ -65,4 +66,5 @@ mountProductEdit(admin);
 mountPrices(admin);
 mountPhotos(admin);
 mountPublish(admin);
+mountAddPhoto(admin);
 mountHelp(admin);

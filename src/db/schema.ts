@@ -32,6 +32,16 @@ export const products = sqliteTable(
   ],
 );
 
+// One row (id 1) kept current by triggers in migration 0003, so the admin list shows counts without reading every product.
+export const productStats = sqliteTable("product_stats", {
+  id: integer("id").primaryKey(),
+  total: integer("total").notNull().default(0),
+  published: integer("published").notNull().default(0),
+  draft: integer("draft").notNull().default(0),
+  needsPhoto: integer("needs_photo").notNull().default(0),
+  similar: integer("similar").notNull().default(0),
+});
+
 export const productCategories = sqliteTable(
   "product_categories",
   {
