@@ -53,4 +53,4 @@ The import only creates; it never updates what is already there:
 
 ## Notes for staff
 
-- Price questions arrive on the shop's WhatsApp. Prices entered in the admin are optional and only for staff reference unless the storefront shows them.
+- Price questions arrive on the shop's WhatsApp. Prices entered in the admin are optional and only for staff reference: the public Store API never sends them.

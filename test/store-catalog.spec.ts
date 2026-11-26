@@ -117,7 +117,7 @@ describe("store catalogue", () => {
     expect(r.total).toBe(1);
   });
 
-  it("list item shows min price or price_on_request", async () => {
+  it("list items never include prices (staff-only reference data)", async () => {
     const c = await cat("plants");
     const a = await prod("a", c.id);
     await variant(a.id, "A1", { price: 30000, size: "L" });
@@ -132,9 +132,11 @@ describe("store catalogue", () => {
     ]);
     const r = (await (await get("/api/store/products")).json()) as any;
     expect(r.items).toEqual([
-      { handle: "a", title: "a", thumbnail_url: "/img/a/1.jpg", min_price_paise: 20000, price_on_request: false, representative_photo: false },
-      { handle: "b", title: "b", thumbnail_url: null, min_price_paise: null, price_on_request: true, representative_photo: false },
+      { handle: "a", title: "a", thumbnail_url: "/img/a/1.jpg", representative_photo: false },
+      { handle: "b", title: "b", thumbnail_url: null, representative_photo: false },
     ]);
+    const text = JSON.stringify(r);
+    for (const w of ["price", "30000", "20000"]) expect(text).not.toContain(w);
   });
 
   it("q matches title case-insensitively", async () => {
@@ -174,15 +176,15 @@ describe("store catalogue", () => {
       description: "desc",
       images: ["/img/l/a.jpg", "/img/l/b.jpg"],
       variants: [
-        { sku: "L1", size: "S", colour: null, price_paise: 5000, in_stock: true },
-        { sku: "L2", size: "M", colour: null, price_paise: null, in_stock: false },
+        { sku: "L1", size: "S", colour: null, in_stock: true },
+        { sku: "L2", size: "M", colour: null, in_stock: false },
       ],
       photo_credit: { author: "A", license: "CC0", source_url: "https://x.y" },
       representative_photo: true,
       categories: [{ handle: "plants", name: "Plants" }],
     });
     const text = JSON.stringify(body);
-    for (const w of ["rawname", "secretnote", "secret.example", "Zed"]) expect(text).not.toContain(w);
+    for (const w of ["rawname", "secretnote", "secret.example", "Zed", "price", "5000"]) expect(text).not.toContain(w);
   });
 
   it("serves R2 images with immutable caching, 404 when missing", async () => {
@@ -297,7 +299,7 @@ describe("store catalogue fix round 1", () => {
     await variant(p.id, "S1", { price: 100, inStock: 0 });
     const list = (await (await get("/api/store/products")).json()) as any;
     expect(list.items[0].thumbnail_url).toBeNull();
-    expect(list.items[0].price_on_request).toBe(true);
+    expect(list.items[0]).not.toHaveProperty("price_on_request");
     expect(((await (await get("/api/store/products/bare")).json()) as any).images).toEqual([]);
   });
 
