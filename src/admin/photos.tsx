@@ -1,9 +1,6 @@
-import { raw } from "hono/html";
 import type { Env } from "../env";
-import { imageUrl } from "../lib/images";
-import { Layout } from "./layout";
 import type { AdminApp } from "./index";
-import { shrinkScript } from "./static/shrink";
+import { ProductPage, loadProductView } from "./product-page";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
@@ -39,7 +36,7 @@ function exactly(len: number) {
 }
 
 type Product = { id: number; title: string; handle: string; status: string };
-type Image = { id: number; r2_key: string; position: number };
+import type { Image } from "./product-page";
 
 async function load(env: Env, id: number) {
   const product = await env.DB.prepare("SELECT id, title, handle, status FROM products WHERE id = ?").bind(id).first<Product>();
@@ -48,51 +45,14 @@ async function load(env: Env, id: number) {
   return { product, images: results };
 }
 
-function PhotosPage(p: { email: string; env: Env; v: NonNullable<Awaited<ReturnType<typeof load>>>; hidden?: boolean; saved?: boolean }) {
-  const { product, images } = p.v;
-  const base = `/admin/products/${product.id}/photos`;
-  return (
-    <Layout title={`Photos: ${product.title}`} email={p.email}>
-      {p.saved && <p style="background:#e8efe3;padding:12px;border-radius:8px">Saved.</p>}
-      {p.hidden && <p style="background:#fff3cd;padding:12px;border-radius:8px">Product hidden because it has no photo</p>}
-      <p>
-        <a href={`/admin/products/${product.id}`}>Back to product</a>
-      </p>
-      <p>The first photo is the one shown in the shop list.</p>
-      {images.length === 0 && <p>No photos yet.</p>}
-      {images.map((i, n) => (
-        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid #ddd">
-          <img src={imageUrl(p.env, i.r2_key)} alt="" style="width:120px;height:120px;object-fit:cover;border-radius:8px" />
-          <strong>{n === 0 ? "Main photo" : `Photo ${n + 1}`}</strong>
-          <form method="post" action={`${base}/${i.id}/move`}>
-            <input type="hidden" name="dir" value="up" />
-            <button type="submit" disabled={n === 0}>Up</button>
-          </form>
-          <form method="post" action={`${base}/${i.id}/move`}>
-            <input type="hidden" name="dir" value="down" />
-            <button type="submit" disabled={n === images.length - 1}>Down</button>
-          </form>
-          <form method="post" action={`${base}/${i.id}/delete`} onsubmit="return confirm('Delete this photo?')">
-            <button type="submit" style="background:#8a2b2b">Delete</button>
-          </form>
-        </div>
-      ))}
-      <h2>Add a photo</h2>
-      <p>
-        <input id="pick" type="file" accept="image/*" style="width:100%" />
-      </p>
-      <p id="msg" role="status"></p>
-      <script>{raw(shrinkScript)}</script>
-    </Layout>
-  );
-}
-
 export function mountPhotos(admin: AdminApp) {
   admin.get("/admin/products/:id/photos", async (c) => {
     const id = parseId(c.req.param("id"));
-    const v = id && (await load(c.env, id));
+    const v = id && (await loadProductView(c.env, id));
     if (!v) return c.notFound();
-    return c.html(<PhotosPage email={c.var.staffEmail} env={c.env} v={v} saved={c.req.query("saved") === "1"} hidden={c.req.query("hidden") === "1"} />);
+    return c.html(
+      <ProductPage email={c.var.staffEmail} env={c.env} v={v} section="photos" saved={c.req.query("saved") === "1"} hidden={c.req.query("hidden") === "1"} />,
+    );
   });
 
   admin.put("/admin/products/:id/photos", async (c) => {

@@ -17,7 +17,7 @@ input.addEventListener("change", async () => {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
     const blob = await new Promise((ok) => canvas.toBlob(ok, "image/jpeg", 0.85));
-    const res = await fetch(location.pathname, { method: "PUT", headers: { "Content-Type": "image/jpeg" }, body: blob });
+    const res = await fetch(input.getAttribute("data-put") || location.pathname, { method: "PUT", headers: { "Content-Type": "image/jpeg" }, body: blob });
     if (!res.ok) throw new Error();
     input.value = "";
     location.reload();
