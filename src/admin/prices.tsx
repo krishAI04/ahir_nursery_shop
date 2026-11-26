@@ -88,16 +88,19 @@ export function mountPrices(admin: AdminApp) {
       .first<{ id: number; hidden: number }>();
     if (existing && !existing.hidden) return fail("That size is already listed");
     if (v.sizes.length >= MAX_SIZES) return fail(`A product can have at most ${MAX_SIZES} sizes`);
+    // Every size change also marks the product changed, so the Publish page counts it.
+    const touch = c.env.DB.prepare("UPDATE products SET updated_at = ? WHERE id = ?").bind(new Date().toISOString(), id);
     if (existing) {
-      await c.env.DB.prepare("UPDATE variants SET hidden = 0, in_stock = 1 WHERE id = ?").bind(existing.id).run();
+      await c.env.DB.batch([c.env.DB.prepare("UPDATE variants SET hidden = 0, in_stock = 1 WHERE id = ?").bind(existing.id), touch]);
       return c.redirect(`/admin/products/${id}/prices?saved=1`, 303);
     }
     const sku = await uniqueSlug(c.env, "variants", "sku", `${v.product.handle}-${slug(size)}${colour ? `-${slug(colour)}` : ""}`);
-    await c.env.DB.prepare(
-      "INSERT INTO variants (product_id, sku, size_label, colour, position) VALUES (?, ?, ?, ?, (SELECT COALESCE(MAX(position), -1) + 1 FROM variants WHERE product_id = ?))",
-    )
-      .bind(id, sku, size, colour || null, id)
-      .run();
+    await c.env.DB.batch([
+      c.env.DB.prepare(
+        "INSERT INTO variants (product_id, sku, size_label, colour, position) VALUES (?, ?, ?, ?, (SELECT COALESCE(MAX(position), -1) + 1 FROM variants WHERE product_id = ?))",
+      ).bind(id, sku, size, colour || null, id),
+      touch,
+    ]);
     return c.redirect(`/admin/products/${id}/prices?saved=1`, 303);
   });
 
@@ -112,7 +115,10 @@ export function mountPrices(admin: AdminApp) {
       return sizesError(c, id, "A product needs at least one size");
     }
     const ordered = await c.env.DB.prepare("SELECT 1 FROM order_items WHERE variant_id = ? LIMIT 1").bind(vid).first();
-    await c.env.DB.prepare(ordered ? "UPDATE variants SET hidden = 1, in_stock = 0 WHERE id = ?" : "DELETE FROM variants WHERE id = ?").bind(vid).run();
+    await c.env.DB.batch([
+      c.env.DB.prepare(ordered ? "UPDATE variants SET hidden = 1, in_stock = 0 WHERE id = ?" : "DELETE FROM variants WHERE id = ?").bind(vid),
+      c.env.DB.prepare("UPDATE products SET updated_at = ? WHERE id = ?").bind(new Date().toISOString(), id),
+    ]);
     return c.redirect(`/admin/products/${id}/prices?saved=1`, 303);
   });
 }

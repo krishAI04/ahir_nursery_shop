@@ -98,6 +98,24 @@ describe("one product page", () => {
     expect(html).toContain('value="12x"');
   });
 
+  it("adding, showing again and removing a size marks the product changed", async () => {
+    const p = await prod("rose");
+    await size(p.id, "rose-a", "A");
+    const at = async () => (await d().select().from(s.products).where(eq(s.products.id, p.id)))[0]!.updatedAt;
+    const reset = () => d().update(s.products).set({ updatedAt: NOW }).where(eq(s.products.id, p.id));
+    expect((await post(`/admin/products/${p.id}/prices/add`, { size: "B", colour: "" })).status).toBe(303);
+    expect((await at()) > NOW).toBe(true);
+    const [b] = await d().select().from(s.variants).where(eq(s.variants.sizeLabel, "B"));
+    await reset();
+    expect((await post(`/admin/products/${p.id}/prices/remove`, { remove: String(b!.id) })).status).toBe(303);
+    expect((await at()) > NOW).toBe(true);
+    await size(p.id, "rose-c", "C");
+    await d().update(s.variants).set({ hidden: 1 }).where(eq(s.variants.sizeLabel, "C"));
+    await reset();
+    expect((await post(`/admin/products/${p.id}/prices/add`, { size: "C", colour: "" })).status).toBe(303);
+    expect((await at()) > NOW).toBe(true);
+  });
+
   it("no-photo product refuses to show in shop", async () => {
     const p = await prod("rose");
     const r = await post(`/admin/products/${p.id}/status`, { status: "published" });

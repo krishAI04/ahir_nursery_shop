@@ -238,12 +238,33 @@ describe("admin publish page", () => {
   it("steps follow the newest deployment's stage", async () => {
     const f = vi.spyOn(globalThis, "fetch").mockImplementation(async () => json({ result: [dep("build", "active")] }));
     let html = await (await get(withHook)).text();
-    expect(html).toMatch(/aria-current="step"[^>]*><span class="dot">…<\/span>Building the pages/);
+    const current = (name: string) => new RegExp(`<li(?=[^>]*aria-current="step")[^>]*><span class="dot">…</span>${name}`);
+    expect(html).toMatch(current("Building the pages"));
     expect(html.match(/aria-current="step"/g)).toHaveLength(1);
     f.mockImplementation(async () => json({ result: [dep("deploy", "active")] }));
     html = await (await get(withHook)).text();
-    expect(html).toMatch(/aria-current="step"[^>]*><span class="dot">…<\/span>Going live/);
+    expect(html).toMatch(current("Going live"));
     expect(html).toContain('aria-label="Publishing steps"');
+  });
+
+  it("before a stage is known only Started shows, with no step marked current", async () => {
+    const fresh = new Date().toISOString();
+    const f = vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      json({ result: [{ ...dep("queued", "idle"), created_on: fresh }] }),
+    );
+    const noCurrent = (html: string) => {
+      expect(html).toContain('aria-label="Publishing steps"');
+      expect(html).not.toContain('aria-current="step"');
+      expect(html).toMatch(/<li class="ok"><span class="dot">/);
+    };
+    noCurrent(await (await get(withHook)).text());
+    f.mockImplementation(async () => json({ result: [{ ...dep("initialize", "idle"), created_on: fresh }] }));
+    noCurrent(await (await get(withHook)).text());
+    f.mockImplementation(async () => json({ result: [{ id: "s", created_on: fresh }] }));
+    noCurrent(await (await get(withHook)).text());
+    // Just after the click, before the new deployment shows up.
+    f.mockImplementation(async () => json({ result: [dep("deploy", "success")] }));
+    noCurrent(await (await admin.request(`${BASE}/admin/publish?started=${Date.now() - 1000}`, {}, withHook)).text());
   });
 
   it("with no successful deployment every product counts, one product says change", async () => {

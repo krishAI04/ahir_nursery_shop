@@ -53,8 +53,9 @@ function PublishPage(p: { email: string; status?: Status; error?: string; self?:
       email={p.email}
       active="publish"
       refresh={refresh}
-      hidePublish={publishing}
+      hidePublish
       help={HELP}
+      tipIcon="moon"
       tip="No need to publish every time: the website also updates by itself every night at 2 am."
     >
       {!p.status ? (
@@ -92,7 +93,10 @@ function PublishPage(p: { email: string; status?: Status; error?: string; self?:
 // A failed D1 read just hides the count.
 async function sinceLive(env: Env, ds: Deploy[]) {
   const live = ds.find((d) => d.status === "live");
-  const changes = await changedSince(env, live?.createdOn ?? null).catch(() => null);
+  const changes = await changedSince(env, live?.createdOn ?? null).catch((e) => {
+    console.error("publish change count failed", e);
+    return null;
+  });
   return { changes, since: live ? stamp(new Date(live.endedOn ?? live.createdOn), Date.now()) : undefined };
 }
 

@@ -7,10 +7,11 @@ const sections: { title: string; icon: IconName; steps: string[] }[] = [
     title: "Add a photo",
     icon: "camera",
     steps: [
-      "Tap Add photo at the bottom of the screen and type part of the product's name.",
+      "Tap Add photo in the menu and type part of the product's name.",
       "Tap Take a photo to use the camera, or Choose from gallery to pick photos you already have. You can pick several at once.",
       "Use daylight and a plain wall or floor, with the whole pot in the photo. No price tags or hands.",
       "The first photo is the one customers see in the shop list.",
+      "On a computer, drag photos onto the product page.",
     ],
   },
   {
@@ -27,7 +28,7 @@ const sections: { title: string; icon: IconName; steps: string[] }[] = [
     icon: "grip",
     steps: [
       "Open the product and go down to Sizes.",
-      "Add a size, or switch In stock off when it is sold out.",
+      "Add a size, or switch In stock off when it is sold out. Then tap Save sizes.",
       "Every product keeps at least one size, so the last one cannot be removed.",
     ],
   },
@@ -54,7 +55,19 @@ const sections: { title: string; icon: IconName; steps: string[] }[] = [
 export function mountHelp(admin: AdminApp) {
   admin.get("/admin/help", (c) =>
     c.html(
-      <Layout title="Help" email={c.var.staffEmail} active="help" tip="every screen has a ? button at the top with help for that screen.">
+      <Layout
+        title="Help"
+        email={c.var.staffEmail}
+        active="help"
+        help={{
+          title: "Using Help",
+          steps: [
+            "Every screen has a ? button at the top. Tap it for help with that screen.",
+            "This page has all the help in one place. Find the job you want to do and follow the steps.",
+          ],
+        }}
+        tip="every screen has a ? button at the top with help for that screen."
+      >
         {sections.map((s) => (
           <section class="card">
             <h2>

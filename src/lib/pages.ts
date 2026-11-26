@@ -41,7 +41,10 @@ export async function latestDeployments(env: Env, fetchImpl: typeof fetch = fetc
   });
   if (!res.ok) throw new PagesApiError(res.status);
   const { result } = (await res.json()) as { result?: ApiDeploy[] };
-  return (result ?? []).map((d) => ({ id: d.id, createdOn: d.created_on, status: deployStatus(d, now), endedOn: d.latest_stage?.ended_on ?? null, ...(deployStatus(d, now) === "publishing" && d.latest_stage?.name ? { stage: d.latest_stage.name } : {}) }));
+  return (result ?? []).map((d) => {
+    const status = deployStatus(d, now);
+    return { id: d.id, createdOn: d.created_on, status, endedOn: d.latest_stage?.ended_on ?? null, ...(status === "publishing" && d.latest_stage?.name ? { stage: d.latest_stage.name } : {}) };
+  });
 }
 
 const clock = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit", hour12: true });

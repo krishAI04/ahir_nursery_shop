@@ -42,10 +42,10 @@ export function Badge(p: { kind: "on" | "off" | "warn"; children: Child }) {
 }
 
 /** A dismissable tip line; shellScript remembers the dismiss in localStorage "nc-admin-tip-<id>". */
-export function Tip(p: { id: string; children: Child; class?: string }) {
+export function Tip(p: { id: string; children: Child; class?: string; icon?: IconName }) {
   return (
     <div class={p.class ? `tip ${p.class}` : "tip"} data-tip={p.id}>
-      <Icon name="bulb" />
+      <Icon name={p.icon ?? "bulb"} />
       <span>{p.children}</span>
       <button type="button" class="x" aria-label="Hide this tip">
         <Icon name="close" small />
@@ -91,6 +91,14 @@ document.querySelectorAll("[data-tip]").forEach(function (t) {
 });
 document.querySelectorAll("[data-open-help]").forEach(function (b) {
   b.addEventListener("click", function () { document.getElementById("help-sheet").showModal(); });
+});
+// A tap on the dark area around a sheet (help, Add photos) closes it; a tap on the sheet's own padding does not.
+document.querySelectorAll("dialog.sheet").forEach(function (d) {
+  d.addEventListener("click", function (e) {
+    if (e.target !== d) return;
+    var r = d.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) d.close();
+  });
 });
 `;
 
@@ -272,6 +280,7 @@ body.dropping main{outline:3px dashed var(--leaf);outline-offset:-6px;border-rad
 .price input{display:block;width:100%;max-width:200px;margin-top:4px;color:var(--text)}
 .rm{background:none;color:var(--clay);padding:0 10px;font-size:14px}
 button.wide{width:100%;margin-top:4px}
+form.sizes.dirty button.wide{position:sticky;bottom:calc(92px + env(safe-area-inset-bottom));z-index:4;box-shadow:0 4px 12px rgba(0,0,0,.2)}
 #sizes h3{font-size:17px;margin:18px 2px 4px}
 .addsize{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end}
 .addsize label{font-size:15px;font-weight:700}
@@ -282,7 +291,9 @@ button.wide{width:100%;margin-top:4px}
 .info dl{margin:0 0 10px;font-size:14px}
 .info dt{font-weight:700;margin-top:6px}
 .info dd{margin:0;color:var(--muted);overflow-wrap:anywhere}
+@media (max-width:899px){.top form{display:none}}
 @media (min-width:900px){
+form.sizes.dirty button.wide{bottom:12px}
 .save{bottom:0;margin:16px 0 0;border:1px solid var(--line);border-radius:12px}
 .tools{display:flex;gap:12px;align-items:flex-start}
 .fab{position:static;background:var(--forest);box-shadow:none;border-radius:12px}
@@ -316,5 +327,13 @@ main{margin:0;padding:0 24px 32px}
 .side .who{margin-top:auto;padding-top:16px;color:#c9d6cb}
 dialog.sheet{margin:auto;border-radius:22px;max-height:80vh;padding-bottom:18px}
 .grab{display:none}
+}
+@media (min-width:1100px){
+.top.pp{max-width:1200px}
+main.pp{max-width:1200px;display:grid;grid-template-columns:5fr 6fr;grid-template-rows:repeat(6,auto) 1fr;column-gap:28px;align-items:start}
+main.pp>*{grid-column:1;min-width:0}
+main.pp>form.details{grid-column:2;grid-row:1/-1;position:sticky;top:16px}
+main.pp>form.details>label:first-child{margin-top:0}
+main.pp>form.details .save{position:static;margin:16px 0 0;padding:0;border:0;background:none}
 }
 `;

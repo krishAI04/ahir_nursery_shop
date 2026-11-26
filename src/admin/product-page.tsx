@@ -249,7 +249,7 @@ function Sizes(p: { v: ProductView; form?: PageForm }) {
   const f = p.form;
   return (
     <>
-      <form method="post" action={`/admin/products/${product.id}/prices`}>
+      <form method="post" action={`/admin/products/${product.id}/prices`} class="sizes">
         {sizes.map((s) => (
           <div class="srow">
             <div class="shead">
@@ -333,22 +333,28 @@ function Info(p: { source?: Source }) {
   );
 }
 
-// Lands on the asked-for section; asks before leaving with unsaved name, description or category changes
-// (window.ncOkToLeave lets the uploader ask the same before it reloads).
+// Lands on the asked-for section; asks before leaving with unsaved changes in the details form or the sizes form
+// (window.ncOkToLeave lets the uploader ask the same before it reloads). While sizes have changes, Save sizes stays in view.
 const pageScript = `
 (function () {
-  var details = document.querySelector("form.details");
-  var dirty = false;
-  var MSG = "You have unsaved changes to the name, description or categories. Leave without saving?";
-  window.ncOkToLeave = function () { if (dirty && !confirm(MSG)) return false; dirty = false; return true; };
+  var forms = [document.querySelector("form.details"), document.querySelector("form.sizes")].filter(Boolean);
+  var MSG = "You have unsaved changes on this page. Leave without saving?";
+  var dirty = function () { return forms.some(function (f) { return f.classList.contains("dirty"); }); };
+  var clean = function (f) { f.classList.remove("dirty"); };
+  window.ncOkToLeave = function () { if (dirty() && !confirm(MSG)) return false; forms.forEach(clean); return true; };
   var ask = function (e) { if (!window.ncOkToLeave()) { e.preventDefault(); e.stopImmediatePropagation(); } };
-  if (details) {
-    var mark = function (e) { if (e.target.name) dirty = true; };
-    details.addEventListener("input", mark);
-    details.addEventListener("change", mark);
+  if (forms.length) {
+    forms.forEach(function (f) {
+      var mark = function (e) { if (e.target.name) f.classList.add("dirty"); };
+      f.addEventListener("input", mark);
+      f.addEventListener("change", mark);
+    });
     document.addEventListener("submit", function (e) {
-      if (e.target === details) dirty = false;
-      else if (e.target.getAttribute("method") !== "dialog") ask(e);
+      var f = e.target;
+      if (f.getAttribute("method") === "dialog") return;
+      // Saving one form is fine; it only asks when the other one still has changes.
+      if (forms.indexOf(f) >= 0) { var was = f.classList.contains("dirty"); clean(f); if (dirty()) { ask(e); if (e.defaultPrevented && was) f.classList.add("dirty"); } }
+      else ask(e);
     }, true);
     document.addEventListener("click", function (e) {
       var a = e.target.closest && e.target.closest("a[href]");
@@ -364,7 +370,7 @@ const pageScript = `
 const help = {
   title: "Editing a product",
   steps: [
-    "Tap Add photos to take or choose photos. The first photo is the one customers see in the shop list.",
+    "Tap Add photos to take or choose photos. On a computer, drag photos onto the product page. The first photo is the one customers see in the shop list.",
     "Change the name, description or categories, then tap Save changes.",
     "Go down to Sizes to switch In stock on or off or add a size, then tap Save sizes.",
     "Switch Showing in shop on when the product has a photo, a shop category and a size.",
@@ -394,7 +400,9 @@ export function ProductPage(p: {
       active="products"
       back={{ href: "/admin/products", label: "All products" }}
       help={help}
+      mainClass="pp"
       tip="a real photo taken in the shop sells better than a similar one."
+      sideTip="a real photo taken in the shop sells better than a similar one. On a computer, drag photos onto the product page."
     >
       {!at && notice}
       <form method="post" action={`/admin/products/${product.id}/status`} class="live">

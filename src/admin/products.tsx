@@ -268,7 +268,7 @@ export function mountProducts(admin: AdminApp) {
       <Layout
         title="Products"
         email={c.var.staffEmail}
-        active="products"
+        active={filter === "needs-photo" ? "needs-photo" : "products"}
         wide
         help={{
           title: "Products",

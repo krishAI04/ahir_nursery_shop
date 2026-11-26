@@ -6,7 +6,7 @@ import { HelpSheet, Icon, Tip, adminCss, iconSprite, shellScript, type IconName 
 /** Set per request by the admin middleware so every page shows the Publish button without passing it down. */
 export const adminRequest = new AsyncLocalStorage<{ canPublish: boolean }>();
 
-type Active = "products" | "photo" | "publish" | "help";
+type Active = "products" | "needs-photo" | "photo" | "publish" | "help";
 type MenuItem = { href: string; icon: IconName; label: string; side: string; active?: Active };
 
 const fonts = "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Young+Serif&display=swap";
@@ -18,7 +18,7 @@ const tipId = (s: string) => {
   return (h >>> 0).toString(36);
 };
 
-// hidePublish: the publish page leaves out the header button while a publish is running.
+// hidePublish: the publish page leaves out the header button (it has its own Publish now).
 export function Layout(props: {
   title: string;
   email: string;
@@ -29,6 +29,12 @@ export function Layout(props: {
   refresh?: string;
   hidePublish?: boolean;
   wide?: boolean;
+  /** Extra class on <main> and the header row, for a page with its own layout (the product page uses "pp"). */
+  mainClass?: string;
+  /** Tip for the laptop side menu when it should say more than the phone tip line. */
+  sideTip?: string;
+  /** Icon for the tip line (a light bulb unless the page says otherwise). */
+  tipIcon?: IconName;
   children?: Child;
 }) {
   const canPublish = !!adminRequest.getStore()?.canPublish;
@@ -36,11 +42,13 @@ export function Layout(props: {
   const menu: MenuItem[] = [
     { href: "/admin/products", icon: "leaf", label: "Products", side: "Products", active: "products" },
     { href: "/admin/add-photo", icon: "camera", label: "Add photo", side: "Add photo", active: "photo" },
-    { href: "/admin/products?filter=needs-photo", icon: "image", label: "", side: "Needs photo" },
+    { href: "/admin/products?filter=needs-photo", icon: "image", label: "", side: "Needs photo", active: "needs-photo" },
     ...(canPublish ? [{ href: "/admin/publish", icon: "upload", label: "Publish", side: "Publish website", active: "publish" } as MenuItem] : []),
     { href: "/admin/help", icon: "help", label: "Help", side: "Help", active: "help" },
   ];
   const current = (m: MenuItem) => (m.active && m.active === props.active ? "page" : undefined);
+  // The bottom menu has no Needs photo item, so Products stays marked there.
+  const tabCurrent = (m: MenuItem) => current(m) ?? (m.active === "products" && props.active === "needs-photo" ? "page" : undefined);
   return (
     <>
       {raw("<!DOCTYPE html>")}
@@ -70,7 +78,7 @@ export function Layout(props: {
                 {m.side}
               </a>
             ))}
-            {props.tip && <div class="help">Tip: {props.tip}</div>}
+            {(props.sideTip ?? props.tip) && <div class="help">Tip: {props.sideTip ?? props.tip}</div>}
             <p class="who">Signed in as {props.email}</p>
           </nav>
           <div>
@@ -80,7 +88,7 @@ export function Layout(props: {
                 {props.back.label}
               </a>
             )}
-            <header class="top">
+            <header class={props.mainClass ? `top ${props.mainClass}` : "top"}>
               {!props.back && (
                 <span class="mark">
                   <Icon name="leaf" />
@@ -103,9 +111,9 @@ export function Layout(props: {
                 </form>
               )}
             </header>
-            <main class={props.wide ? "wide" : undefined}>
+            <main class={[props.wide && "wide", props.mainClass].filter(Boolean).join(" ") || undefined}>
               {props.tip && (
-                <Tip id={tipId(props.tip)} class="page-tip">
+                <Tip id={tipId(props.tip)} class="page-tip" icon={props.tipIcon}>
                   <b>Tip:</b> {props.tip}
                 </Tip>
               )}
@@ -116,7 +124,7 @@ export function Layout(props: {
             {menu
               .filter((m) => m.label)
               .map((m) => (
-                <a href={m.href} class={m.active === "photo" ? "cam" : undefined} aria-current={current(m)}>
+                <a href={m.href} class={m.active === "photo" ? "cam" : undefined} aria-current={tabCurrent(m)}>
                   <span class="pill">
                     <Icon name={m.icon} />
                   </span>
