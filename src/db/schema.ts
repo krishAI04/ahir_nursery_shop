@@ -29,8 +29,23 @@ export const products = sqliteTable(
   (t) => [
     index("products_status_title_idx").on(t.status, sql`${t.title} COLLATE NOCASE`, t.id),
     index("products_title_idx").on(sql`${t.title} COLLATE NOCASE`, t.id),
+    // Publish page: "products changed since" counts by updated_at.
+    index("products_updated_at_idx").on(t.updatedAt),
+    // Similar photo filter walks only the similar ones, in title order.
+    index("products_similar_title_idx").on(sql`${t.title} COLLATE NOCASE`, t.id).where(sql`representative_photo = 1`),
   ],
 );
+
+// One row (id 1) kept current by triggers in migration 0003, so the admin list shows counts without reading every product.
+// Never use INSERT OR REPLACE on products or product_images: REPLACE deletes without firing delete triggers, so product_stats would drift.
+export const productStats = sqliteTable("product_stats", {
+  id: integer("id").primaryKey(),
+  total: integer("total").notNull().default(0),
+  published: integer("published").notNull().default(0),
+  draft: integer("draft").notNull().default(0),
+  needsPhoto: integer("needs_photo").notNull().default(0),
+  similar: integer("similar").notNull().default(0),
+});
 
 export const productCategories = sqliteTable(
   "product_categories",
@@ -41,6 +56,7 @@ export const productCategories = sqliteTable(
   (t) => [primaryKey({ columns: [t.productId, t.categoryId] }), index("product_categories_category_idx").on(t.categoryId, t.productId)],
 );
 
+// No INSERT OR REPLACE here either (see product_stats above).
 export const productImages = sqliteTable(
   "product_images",
   {
@@ -48,6 +64,8 @@ export const productImages = sqliteTable(
     productId: integer("product_id").notNull().references(() => products.id),
     r2Key: text("r2_key").notNull(),
     position: integer("position").notNull().default(0),
+    // 1 = a look-alike photo borrowed before a real one was taken; real uploads go before these.
+    similar: integer("similar").notNull().default(0),
   },
   (t) => [index("product_images_product_idx").on(t.productId)],
 );
@@ -65,7 +83,11 @@ export const variants = sqliteTable(
     hidden: integer("hidden").notNull().default(0),
     position: integer("position").notNull().default(0),
   },
-  (t) => [uniqueIndex("variants_product_size_colour_uq").on(t.productId, t.sizeLabel, sql`coalesce(${t.colour}, '')`)],
+  (t) => [
+    uniqueIndex("variants_product_size_colour_uq").on(t.productId, t.sizeLabel, sql`coalesce(${t.colour}, '')`),
+    // Small: only sizes that are out of stock or removed. The admin "Out of stock" filter starts from it instead of every product.
+    index("variants_unavailable_idx").on(t.productId).where(sql`in_stock = 0 OR hidden = 1`),
+  ],
 );
 
 export const productSources = sqliteTable("product_sources", {
@@ -145,4 +167,10 @@ export const refunds = sqliteTable("refunds", {
 export const webhookEvents = sqliteTable("webhook_events", {
   id: text("id").primaryKey(), // Razorpay event id
   receivedAt: text("received_at").notNull(),
+});
+
+// Single row (id = 1): the last failed deploy the 30-minute check already retried.
+export const sitePublish = sqliteTable("site_publish", {
+  id: integer("id").primaryKey(),
+  lastRetriedDeployId: text("last_retried_deploy_id"),
 });

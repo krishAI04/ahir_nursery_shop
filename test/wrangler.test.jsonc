@@ -13,6 +13,7 @@
       "migrations_dir": "../migrations"
     }
   ],
+  "triggers": { "crons": ["30 20 * * *", "*/30 * * * *"] },
   "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "nature-care-photos" }],
   "vars": {
     "ENVIRONMENT": "production",
@@ -20,6 +21,8 @@
     "ACCESS_TEAM_DOMAIN": "",
     "ACCESS_AUD": "",
     "IMAGE_BASE_URL": "",
-    "SHOP_WHATSAPP": "919999999999"
+    "SHOP_WHATSAPP": "919999999999",
+    "CF_ACCOUNT_ID": "",
+    "PAGES_PROJECT": ""
   }
 }

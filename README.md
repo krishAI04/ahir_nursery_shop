@@ -35,13 +35,21 @@ The import only creates; it never updates what is already there:
 
 1. Move the domain's DNS to Cloudflare.
 2. Create the D1 database `nature-care` and the R2 bucket `nature-care-photos`. Put the real `database_id` in `wrangler.jsonc`.
-3. `npx wrangler d1 migrations apply nature-care --remote`
+3. `npx wrangler d1 migrations apply nature-care --remote`. Apply D1 migrations like this before every deploy of the Worker; `/admin/products` needs the `product_stats` table (migration 0003); migration 0005 adds the indexes the Publish page's change count and the Similar photo filter use; migration 0006 marks borrowed photos so real uploads go before them.
+   If someone edits products or photos by hand and the admin counts look wrong, recount with:
+   `npx wrangler d1 execute nature-care --remote --command "UPDATE product_stats SET (total, published, draft, needs_photo, similar) = (SELECT COUNT(*), COALESCE(SUM(status = 'published'), 0), COALESCE(SUM(status = 'draft'), 0), COALESCE(SUM(NOT EXISTS (SELECT 1 FROM product_images i WHERE i.product_id = p.id)), 0), COALESCE(SUM(representative_photo = 1), 0) FROM products p) WHERE id = 1"`
 4. In Cloudflare Zero Trust, create an Access application that covers `/admin*` and allows the staff emails. Put its team domain in `ACCESS_TEAM_DOMAIN` as the bare host, e.g. `yourteam.cloudflareaccess.com` (no `https://`, no slash), and its AUD tag in `ACCESS_AUD`, both in `wrangler.jsonc`.
 5. Photos: until the R2 image domain exists, set `IMAGE_BASE_URL` to `https://<worker>.workers.dev/img/` (the Worker's own address), so a storefront on another site gets full photo addresses. Once the domain is on Cloudflare, give the R2 bucket the custom domain `images.natureecarenursery.in` and change `IMAGE_BASE_URL` to `https://images.natureecarenursery.in` (photos then stop counting against the Worker's free daily requests).
 6. Set `STOREFRONT_ORIGINS` to the real storefront address(es).
 7. Set `SHOP_WHATSAPP` in `wrangler.jsonc` to the shop's WhatsApp number: country code + number, digits only (e.g. `9198XXXXXXXX`).
 8. Import the catalogue: `npm run import -- --remote --dry-run`, then `npm run import -- --remote --yes`. The photos take about 50 minutes.
-9. `npx wrangler deploy`
+9. Publishing the storefront: create the Cloudflare Pages project for the storefront repo (build command `npm test && npm run build`), and add a Deploy Hook to it. Then:
+   - `npx wrangler secret put PAGES_DEPLOY_HOOK` (the deploy hook URL)
+   - `npx wrangler secret put CF_API_TOKEN` (an API token with Account, Cloudflare Pages: Read)
+   - set `CF_ACCOUNT_ID` and `PAGES_PROJECT` (the Pages project name) in `wrangler.jsonc`
+
+   Until `PAGES_DEPLOY_HOOK` is set, the admin hides the "Publish site" link.
+10. `npx wrangler deploy`
 
 ## Notes for staff
 

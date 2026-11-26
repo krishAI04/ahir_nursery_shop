@@ -1,9 +1,6 @@
-import { raw } from "hono/html";
 import type { Env } from "../env";
-import { imageUrl } from "../lib/images";
-import { Layout } from "./layout";
 import type { AdminApp } from "./index";
-import { shrinkScript } from "./static/shrink";
+import { ProductPage, loadProductView, type Image } from "./product-page";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
@@ -39,7 +36,6 @@ function exactly(len: number) {
 }
 
 type Product = { id: number; title: string; handle: string; status: string };
-type Image = { id: number; r2_key: string; position: number };
 
 async function load(env: Env, id: number) {
   const product = await env.DB.prepare("SELECT id, title, handle, status FROM products WHERE id = ?").bind(id).first<Product>();
@@ -48,51 +44,20 @@ async function load(env: Env, id: number) {
   return { product, images: results };
 }
 
-function PhotosPage(p: { email: string; env: Env; v: NonNullable<Awaited<ReturnType<typeof load>>>; hidden?: boolean; saved?: boolean }) {
-  const { product, images } = p.v;
-  const base = `/admin/products/${product.id}/photos`;
-  return (
-    <Layout title={`Photos: ${product.title}`} email={p.email}>
-      {p.saved && <p style="background:#e8efe3;padding:12px;border-radius:8px">Saved.</p>}
-      {p.hidden && <p style="background:#fff3cd;padding:12px;border-radius:8px">Product hidden because it has no photo</p>}
-      <p>
-        <a href={`/admin/products/${product.id}`}>Back to product</a>
-      </p>
-      <p>The first photo is the one shown in the shop list.</p>
-      {images.length === 0 && <p>No photos yet.</p>}
-      {images.map((i, n) => (
-        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid #ddd">
-          <img src={imageUrl(p.env, i.r2_key)} alt="" style="width:120px;height:120px;object-fit:cover;border-radius:8px" />
-          <strong>{n === 0 ? "Main photo" : `Photo ${n + 1}`}</strong>
-          <form method="post" action={`${base}/${i.id}/move`}>
-            <input type="hidden" name="dir" value="up" />
-            <button type="submit" disabled={n === 0}>Up</button>
-          </form>
-          <form method="post" action={`${base}/${i.id}/move`}>
-            <input type="hidden" name="dir" value="down" />
-            <button type="submit" disabled={n === images.length - 1}>Down</button>
-          </form>
-          <form method="post" action={`${base}/${i.id}/delete`} onsubmit="return confirm('Delete this photo?')">
-            <button type="submit" style="background:#8a2b2b">Delete</button>
-          </form>
-        </div>
-      ))}
-      <h2>Add a photo</h2>
-      <p>
-        <input id="pick" type="file" accept="image/*" style="width:100%" />
-      </p>
-      <p id="msg" role="status"></p>
-      <script>{raw(shrinkScript)}</script>
-    </Layout>
-  );
-}
+const touch = (env: Env, id: number, extra = "") => env.DB.prepare(`UPDATE products SET updated_at = ?${extra} WHERE id = ?`).bind(new Date().toISOString(), id);
+const setOrder = (env: Env, id: number, ids: number[]) => [
+  ...ids.map((iid, n) => env.DB.prepare("UPDATE product_images SET position = ? WHERE id = ? AND product_id = ?").bind(n + 1, iid, id)),
+  touch(env, id),
+];
 
 export function mountPhotos(admin: AdminApp) {
   admin.get("/admin/products/:id/photos", async (c) => {
     const id = parseId(c.req.param("id"));
-    const v = id && (await load(c.env, id));
+    const v = id && (await loadProductView(c.env, id));
     if (!v) return c.notFound();
-    return c.html(<PhotosPage email={c.var.staffEmail} env={c.env} v={v} saved={c.req.query("saved") === "1"} hidden={c.req.query("hidden") === "1"} />);
+    return c.html(
+      <ProductPage email={c.var.staffEmail} env={c.env} v={v} section="photos" saved={c.req.query("saved") === "1"} hidden={c.req.query("hidden") === "1"} />,
+    );
   });
 
   admin.put("/admin/products/:id/photos", async (c) => {
@@ -104,7 +69,9 @@ export function mountPhotos(admin: AdminApp) {
     if (lenHeader === undefined || !/^\d+$/.test(lenHeader)) return c.json({ error: "Length required" }, 411);
     const len = Number(lenHeader);
     if (len > MAX_BYTES) return c.json({ error: "Photo is too big (5 MB at most)" }, 413);
-    const product = id ? await c.env.DB.prepare("SELECT handle FROM products WHERE id = ?").bind(id).first<{ handle: string }>() : null;
+    const product = id
+      ? await c.env.DB.prepare("SELECT handle, representative_photo FROM products WHERE id = ?").bind(id).first<{ handle: string; representative_photo: number }>()
+      : null;
     if (!id || !product) return c.json({ error: "Not found" }, 404);
     const body = c.req.raw.body;
     if (!body || len === 0) return c.json({ error: "Empty photo" }, 400);
@@ -122,18 +89,40 @@ export function mountPhotos(admin: AdminApp) {
       await c.env.PHOTOS.delete(key).catch((e) => console.error("photo upload: could not remove mismatched upload", key, e));
       return c.json({ error: "Upload did not match its size" }, 413);
     }
-    let row: { id: number; position: number } | null;
+    // Real photos go before any similar (borrowed) ones, which are kept at the end.
+    // The first real photo also marks the product's existing photos as similar and clears the product's mark.
+    const similar = product.representative_photo === 1;
+    let row: { id: number; position: number } | undefined;
     try {
-      row = await c.env.DB.prepare(
-        "INSERT INTO product_images (product_id, r2_key, position) VALUES (?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM product_images WHERE product_id = ?)) RETURNING id, position",
-      )
-        .bind(id, key, id)
-        .first<{ id: number; position: number }>();
+      const insert = c.env.DB.prepare(
+        "INSERT INTO product_images (product_id, r2_key, position) VALUES (?, ?, COALESCE((SELECT MIN(position) FROM product_images WHERE product_id = ? AND similar = 1), (SELECT COALESCE(MAX(position), 0) + 1 FROM product_images WHERE product_id = ?))) RETURNING id, position",
+      ).bind(id, key, id, id);
+      const res = await c.env.DB.batch<{ id: number; position: number }>([
+        ...(similar ? [c.env.DB.prepare("UPDATE product_images SET similar = 1 WHERE product_id = ?").bind(id)] : []),
+        insert,
+        c.env.DB.prepare("UPDATE product_images SET position = position + 1 WHERE product_id = ? AND similar = 1").bind(id),
+        touch(c.env, id, similar ? ", representative_photo = 0" : ""),
+      ]);
+      row = res[similar ? 1 : 0]!.results[0];
     } catch (e) {
       await c.env.PHOTOS.delete(key).catch(() => {});
       throw e;
     }
     return c.json({ ok: true, id: row!.id, position: row!.position });
+  });
+
+  // Drag to reorder: `order` must list exactly this product's photo ids, each once.
+  admin.post("/admin/products/:id/photos/order", async (c) => {
+    const id = parseId(c.req.param("id"));
+    const v = id && (await load(c.env, id));
+    if (!id || !v) return c.notFound();
+    const json = (c.req.header("Accept") ?? "").includes("application/json");
+    const ids = String((await c.req.parseBody()).order ?? "").split(",").map(parseId);
+    const own = new Set(v.images.map((i) => i.id));
+    const ok = ids.length === own.size && new Set(ids).size === ids.length && ids.every((i) => i !== null && own.has(i));
+    if (!ok) return json ? c.json({ error: "That photo order does not match this product's photos" }, 400) : c.text("That photo order does not match this product's photos", 400);
+    await c.env.DB.batch(setOrder(c.env, id, ids as number[]));
+    return json ? c.json({ ok: true }) : c.redirect(`/admin/products/${id}/photos?saved=1`, 303);
   });
 
   admin.post("/admin/products/:id/photos/:imageId/move", async (c) => {
@@ -148,7 +137,7 @@ export function mountPhotos(admin: AdminApp) {
     if (to >= 0 && to < v.images.length) {
       const order = v.images.map((i) => i.id);
       [order[from], order[to]] = [order[to]!, order[from]!];
-      await c.env.DB.batch(order.map((iid, n) => c.env.DB.prepare("UPDATE product_images SET position = ? WHERE id = ? AND product_id = ?").bind(n + 1, iid, id)));
+      await c.env.DB.batch(setOrder(c.env, id, order));
     }
     return c.redirect(`/admin/products/${id}/photos?saved=1`, 303);
   });
@@ -165,7 +154,7 @@ export function mountPhotos(admin: AdminApp) {
     await c.env.DB.batch([
       c.env.DB.prepare("DELETE FROM product_images WHERE id = ? AND product_id = ?").bind(imageId, id),
       ...rest.map((i, n) => c.env.DB.prepare("UPDATE product_images SET position = ? WHERE id = ?").bind(n + 1, i.id)),
-      ...(hide ? [c.env.DB.prepare("UPDATE products SET status = 'draft', updated_at = ? WHERE id = ?").bind(new Date().toISOString(), id)] : []),
+      touch(c.env, id, hide ? ", status = 'draft'" : ""),
     ]);
     // Row first: a failed object delete leaves only a harmless orphan, never a broken thumbnail.
     await c.env.PHOTOS.delete(img.r2_key).catch((e) => console.error("photo object delete failed", e));

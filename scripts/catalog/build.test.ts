@@ -1,7 +1,7 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { readCatalog, readGroups, parseCsv, toCsv } from "./csv";
-import { buildDrafts } from "./build";
+import { readCatalog, readGroups, parseCsv, toCsv, type CatalogRow } from "./csv";
+import { buildDrafts, sizeFamilies } from "./build";
 
 const rows = readCatalog(path.join(import.meta.dirname, "fixtures", "catalog-mini.csv"));
 const groups = [
@@ -158,5 +158,39 @@ describe("buildDrafts", () => {
     const roses = build().filter((d) => d.title === "Rose");
     expect(roses.length).toBe(2);
     expect(roses.map((d) => d.status).sort()).toEqual(["draft", "published"]);
+  });
+});
+
+describe("sizeFamilies", () => {
+  const row = (product: string, folder = "pots-planters/ceramic", raw = product): CatalogRow => ({
+    sheet: "NT P.xls", excel_row: "1", raw_name: raw, product, folder, photo_file: `${folder}/x.jpg`,
+    photo_source: "similar item, not exact", source_url: "", image_url: "", license: "", author: "", notes: "",
+  });
+  const fam = [
+    row("SC Line Round L"), row("SC Line Round XL"),
+    row("Sc Peacock", "decor-accessories/miniatures", "Sc Peacock (1)"), row("SC Peacock Big", "decor-accessories/miniatures"), row("SC Peacock Small", "decor-accessories/miniatures"),
+    row("Vr Big Railing"), row("Vr Small Railing", "garden-tools/other"),
+    row("Neem Oil 100 ml", "soil-fertilizer"),
+    row("Blossom Black Pot Big"), row("Blossom Black Pot Small"),
+  ];
+  const colourGroups = [{ catalog_product: "Blossom Black Pot Big", shop_product: "Blossom Pot", colour: "Black" }];
+
+  it("joins products whose names differ only by a size word, in the same folder", () => {
+    expect(sizeFamilies(fam, colourGroups)).toEqual([
+      { catalog_product: "SC Line Round L", shop_product: "SC Line Round", colour: "" },
+      { catalog_product: "SC Line Round XL", shop_product: "SC Line Round", colour: "" },
+      { catalog_product: "SC Peacock Big", shop_product: "Sc Peacock", colour: "" }, // the plain name is the title
+      { catalog_product: "SC Peacock Small", shop_product: "Sc Peacock", colour: "" },
+      { catalog_product: "Sc Peacock", shop_product: "Sc Peacock", colour: "" },
+    ]);
+  });
+
+  it("becomes one product with a size each", () => {
+    const groups = sizeFamilies(fam, colourGroups);
+    const drafts = buildDrafts(fam, groups, new Map());
+    const round = drafts.find((d) => d.handle === "sc-line-round")!;
+    expect(round.variants.map((v) => v.size)).toEqual(["L", "XL"]);
+    expect(drafts.find((d) => d.handle === "sc-peacock")!.variants.map((v) => v.size)).toEqual(["Standard", "Big", "Small"]);
+    expect(drafts.some((d) => d.handle === "sc-line-round-l")).toBe(false);
   });
 });

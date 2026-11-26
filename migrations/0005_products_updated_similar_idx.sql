@@ -1,0 +1,2 @@
+CREATE INDEX `products_updated_at_idx` ON `products` (`updated_at`);--> statement-breakpoint
+CREATE INDEX `products_similar_title_idx` ON `products` ("title" COLLATE NOCASE,`id`) WHERE representative_photo = 1;

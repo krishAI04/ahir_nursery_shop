@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { app } from "../src/index";
 import type { Env } from "../src/env";
 
@@ -96,6 +96,34 @@ describe("catalogue list reads stay small with a full-size catalogue", () => {
       const { rows } = await measure(path);
       expect(rows, path).toBeLessThan(1500);
     }
+  });
+
+  it("admin similar and out-of-stock filters read well under 1,500 rows", async () => {
+    for (const path of ["/admin/products?filter=similar", "/admin/products?filter=out-of-stock"]) {
+      const { rows } = await measure(path);
+      expect(rows, path).toBeLessThan(1500);
+    }
+  });
+
+  it("publish page change count reads well under 1,500 rows", async () => {
+    const withHook = { ...testEnv, PAGES_DEPLOY_HOOK: "https://hooks.test/x", CF_API_TOKEN: "t", CF_ACCOUNT_ID: "a", PAGES_PROJECT: "p" } as Env;
+    const live = { id: "d", created_on: "2026-11-19T00:00:00Z", latest_stage: { name: "deploy", status: "success", ended_on: "2026-11-19T00:01:00Z" } };
+    const f = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ result: [live] })));
+    rowsRead = 0;
+    const res = await app.request("http://localhost/admin/publish", {}, withHook);
+    f.mockRestore();
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain("1120");
+    expect(rowsRead).toBeLessThan(1500);
+  });
+
+  it("add-photo picker search reads well under 1,500 rows", async () => {
+    const prefix = await measure("/admin/add-photo?q=Plant%2000");
+    expect(prefix.rows).toBeLessThan(1500);
+    expect(prefix.body).toContain("Plant 00");
+    const lower = await measure("/admin/add-photo?q=plant");
+    expect(lower.rows).toBeLessThan(1500);
+    expect(lower.body).toContain("Plant 0");
   });
 });
 

@@ -13,6 +13,7 @@
       "migrations_dir": "migrations"
     }
   ],
+  "triggers": { "crons": ["30 20 * * *", "*/30 * * * *"] },
   "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "nature-care-photos" }],
   "vars": {
     "ENVIRONMENT": "production",
@@ -21,6 +22,9 @@
     "ACCESS_AUD": "",
     "IMAGE_BASE_URL": "",
     // Shop WhatsApp number for price enquiries: country code + number, digits only (e.g. 9198XXXXXXXX). Set before go-live.
-    "SHOP_WHATSAPP": ""
+    "SHOP_WHATSAPP": "918817722220",
+    // Pages publishing. PAGES_DEPLOY_HOOK and CF_API_TOKEN are secrets (see README), not vars.
+    "CF_ACCOUNT_ID": "",
+    "PAGES_PROJECT": ""
   }
 }

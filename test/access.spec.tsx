@@ -127,6 +127,14 @@ describe("requireStaff on /admin", () => {
     expect(res.headers.get("referrer-policy")).toBe("same-origin");
   });
 
+  it("/admin/ with a trailing slash also opens products, and still needs a login in production", async () => {
+    const res = await admin.request("/admin/", {}, env({ ENVIRONMENT: "development" }));
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/admin/products");
+    mockCerts();
+    expect((await admin.request("/admin/", {}, env())).status).toBe(403);
+  });
+
   it("production: missing header gives 403 plain page", async () => {
     mockCerts();
     const res = await admin.request("/admin", {}, env());

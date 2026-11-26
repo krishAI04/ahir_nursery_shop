@@ -235,3 +235,154 @@ describe("final fix wave: photos", () => {
     spy.mockRestore();
   });
 });
+
+describe("photo uploader and reorder", () => {
+  beforeEach(async () => {
+    const { objects } = await env.PHOTOS.list();
+    for (const o of objects) await env.PHOTOS.delete(o.key);
+    for (const t of [s.orderStatusLog, s.refunds, s.orderItems, s.orders, s.variants, s.productImages, s.productSources, s.productCategories, s.products, s.categories]) {
+      await d().delete(t);
+    }
+  });
+  const productRow = async (id: number) => (await d().select().from(s.products).where(eq(s.products.id, id)))[0]!;
+  const order = async (pid: number) => (await imagesOf(pid)).map((r) => [r.id, r.position]);
+
+  it("order endpoint saves the new order", async () => {
+    const p = await prod("rose");
+    const a = await img(p.id, "a.jpg", 1);
+    const b = await img(p.id, "b.jpg", 2);
+    const c = await img(p.id, "c.jpg", 3);
+    const res = await post(`/admin/products/${p.id}/photos/order`, { order: `${c.id},${a.id},${b.id}` });
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe(`/admin/products/${p.id}/photos?saved=1`);
+    expect(await order(p.id)).toEqual([[c.id, 1], [a.id, 2], [b.id, 3]]);
+    expect((await productRow(p.id)).updatedAt > NOW).toBe(true);
+    const j = await post(`/admin/products/${p.id}/photos/order`, { order: `${a.id},${b.id},${c.id}` }, { accept: "application/json" });
+    expect(j.status).toBe(200);
+    expect(await j.json()).toEqual({ ok: true });
+    expect(await order(p.id)).toEqual([[a.id, 1], [b.id, 2], [c.id, 3]]);
+  });
+
+  it("order endpoint refuses a list that is missing, foreign or repeated ids", async () => {
+    const p = await prod("rose");
+    const q = await prod("lily");
+    const a = await img(p.id, "a.jpg", 1);
+    const b = await img(p.id, "b.jpg", 2);
+    const c = await img(p.id, "c.jpg", 3);
+    const other = await img(q.id, "x.jpg", 1);
+    const before = await order(p.id);
+    for (const list of [`${a.id},${b.id}`, `${a.id},${b.id},${c.id},999`, `${a.id},${a.id},${b.id}`, `${b.id},${a.id},${other.id}`, `${c.id},${b.id},${a.id},`, "", "x"]) {
+      const res = await post(`/admin/products/${p.id}/photos/order`, { order: list }, { accept: "application/json" });
+      expect(res.status, list).toBe(400);
+      expect(await order(p.id)).toEqual(before);
+    }
+    expect((await post(`/admin/products/${p.id}/photos/order`, { order: `${a.id},${a.id},${b.id}` })).status).toBe(400);
+    expect((await post(`/admin/products/9999/photos/order`, { order: `${a.id}` })).status).toBe(404);
+    expect(await order(q.id)).toEqual([[other.id, 1]]);
+  });
+
+  it("uploading to a similar-photo product makes the new photo main and clears the mark", async () => {
+    const p = await prod("rose");
+    await d().update(s.products).set({ representativePhoto: 1 }).where(eq(s.products.id, p.id));
+    const old = await img(p.id, "old.jpg", 1);
+    const res = await put(`/admin/products/${p.id}/photos`, JPEG, { "content-type": "image/jpeg", "content-length": String(JPEG.length) });
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as { ok: boolean; id: number; position: number };
+    expect(j.position).toBe(1);
+    expect(await order(p.id)).toEqual([[j.id, 1], [old.id, 2]]);
+    const row = await productRow(p.id);
+    expect(row.representativePhoto).toBe(0);
+    expect(row.updatedAt > NOW).toBe(true);
+  });
+
+  it("later real photos also go before the old similar photos, which stay last", async () => {
+    const p = await prod("rose");
+    await d().update(s.products).set({ representativePhoto: 1 }).where(eq(s.products.id, p.id));
+    const old1 = await img(p.id, "old1.jpg", 1);
+    const old2 = await img(p.id, "old2.jpg", 2);
+    const up = async () => (await (await put(`/admin/products/${p.id}/photos`, JPEG, { "content-type": "image/jpeg", "content-length": String(JPEG.length) })).json()) as { id: number; position: number };
+    const a = await up();
+    const b = await up();
+    const c = await up();
+    expect(b.position).toBe(2);
+    expect(await order(p.id)).toEqual([[a.id, 1], [b.id, 2], [c.id, 3], [old1.id, 4], [old2.id, 5]]);
+  });
+
+  it("uploading to a normal product appends and bumps updated_at", async () => {
+    const p = await prod("rose");
+    const a = await img(p.id, "a.jpg", 1);
+    const b = await img(p.id, "b.jpg", 2);
+    const res = await put(`/admin/products/${p.id}/photos`, JPEG, { "content-type": "image/jpeg", "content-length": String(JPEG.length) });
+    const j = (await res.json()) as { id: number; position: number };
+    expect(j.position).toBe(3);
+    expect(await order(p.id)).toEqual([[a.id, 1], [b.id, 2], [j.id, 3]]);
+    const row = await productRow(p.id);
+    expect(row.updatedAt > NOW).toBe(true);
+    expect(row.representativePhoto).toBe(0);
+  });
+
+  it("move and delete bump updated_at", async () => {
+    const p = await prod("rose");
+    await img(p.id, "a.jpg", 1);
+    const b = await img(p.id, "b.jpg", 2);
+    await post(`/admin/products/${p.id}/photos/${b.id}/move`, { dir: "up" });
+    expect((await productRow(p.id)).updatedAt > NOW).toBe(true);
+    const q = await prod("lily");
+    const c = await img(q.id, "c.jpg", 1);
+    await img(q.id, "e.jpg", 2);
+    await post(`/admin/products/${q.id}/photos/${c.id}/delete`);
+    expect((await productRow(q.id)).updatedAt > NOW).toBe(true);
+  });
+
+  it("product page opens the add sheet when asked", async () => {
+    const p = await prod("rose");
+    const asked = await (await get(`/admin/products/${p.id}?add=1`)).text();
+    expect(asked).toContain("data-open-add");
+    expect(asked).toMatch(/<dialog[^>]*id="add-sheet"[^>]*data-autoopen/);
+    const plain = await (await get(`/admin/products/${p.id}`)).text();
+    expect(plain).toMatch(/<dialog[^>]*id="add-sheet"/);
+    expect(plain).not.toMatch(/<dialog[^>]*id="add-sheet"[^>]*data-autoopen/);
+  });
+
+  it("uploader asks for camera and gallery", async () => {
+    const p = await prod("rose");
+    const html = await (await get(`/admin/products/${p.id}`)).text();
+    expect(html).toMatch(/<input[^>]*type="file"[^>]*accept="image\/\*"[^>]*capture="environment"/);
+    expect(html).toMatch(/<input[^>]*type="file"[^>]*accept="image\/\*"[^>]*multiple/);
+    expect(html).toContain("Take a photo");
+    expect(html).toContain("Choose from gallery");
+    expect(html).toContain("Could not upload this photo. Try another one.");
+    expect(html).toContain("Could not save the new order");
+    const script = html.slice(html.indexOf("XMLHttpRequest") - 3000, html.indexOf("XMLHttpRequest") + 3000);
+    expect(html).toContain("XMLHttpRequest");
+    expect(script).toContain("2000");
+    expect(script).toContain("image/jpeg");
+    expect(html).toContain(`data-put="/admin/products/${p.id}/photos"`);
+  });
+});
+
+describe("photo upload review fixes", () => {
+  it("a failed upload batch removes the stored object and changes no row or mark", async () => {
+    for (const t of [s.orderStatusLog, s.refunds, s.orderItems, s.orders, s.variants, s.productImages, s.productSources, s.productCategories, s.products, s.categories]) {
+      await d().delete(t);
+    }
+    const { objects } = await env.PHOTOS.list();
+    for (const o of objects) await env.PHOTOS.delete(o.key);
+    const p = await prod("rf-rose");
+    await d().update(s.products).set({ representativePhoto: 1 }).where(eq(s.products.id, p.id));
+    const old = await img(p.id, "rf-old.jpg", 1);
+    const failing = {
+      ...devEnv,
+      DB: { prepare: (sql: string) => env.DB.prepare(sql), batch: async () => { throw new Error("d1 down"); } },
+    } as unknown as Env;
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await admin.request(`${BASE}/admin/products/${p.id}/photos`, { method: "PUT", body: JPEG, headers: { "content-type": "image/jpeg", "content-length": "8" } }, failing);
+    spy.mockRestore();
+    expect(res.status).toBe(500);
+    expect((await env.PHOTOS.list({ prefix: "products/" })).objects).toHaveLength(0);
+    expect((await imagesOf(p.id)).map((r) => [r.id, r.position])).toEqual([[old.id, 1]]);
+    const [row] = await d().select().from(s.products).where(eq(s.products.id, p.id));
+    expect(row!.representativePhoto).toBe(1);
+    expect(row!.updatedAt).toBe(NOW);
+  });
+});

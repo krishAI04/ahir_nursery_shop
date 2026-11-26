@@ -3,6 +3,7 @@ import type { Env } from "./env";
 import { storefrontCors } from "./lib/cors";
 import { catalog } from "./store/catalog";
 import { admin } from "./admin/index";
+import { runPublishCron } from "./cron/publish";
 
 export const app = new Hono<{ Bindings: Env }>();
 
@@ -12,4 +13,9 @@ app.route("/", catalog);
 // All /admin routes must be added to the `admin` sub-app (behind requireStaff), never on this parent app.
 app.route("/", admin);
 
-export default { fetch: app.fetch };
+export default {
+  fetch: app.fetch,
+  scheduled: (e: ScheduledController, env: Env, ctx: ExecutionContext) => {
+    ctx.waitUntil(runPublishCron(e.cron, env));
+  },
+};
