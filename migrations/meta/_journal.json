@@ -50,6 +50,13 @@
       "when": 1795712620599,
       "tag": "0006_photo_similar_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1795720753304,
+      "tag": "0007_catalog_version",
+      "breakpoints": true
     }
   ]
 }

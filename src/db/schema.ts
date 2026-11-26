@@ -174,3 +174,9 @@ export const sitePublish = sqliteTable("site_publish", {
   id: integer("id").primaryKey(),
   lastRetriedDeployId: text("last_retried_deploy_id"),
 });
+
+// One row whose token changes on every write that can change the public product list (set by triggers in migration 0007).
+export const catalogVersion = sqliteTable("catalog_version", {
+  id: integer("id").primaryKey(),
+  token: text("token").notNull(),
+});
