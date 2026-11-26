@@ -29,6 +29,10 @@ export const products = sqliteTable(
   (t) => [
     index("products_status_title_idx").on(t.status, sql`${t.title} COLLATE NOCASE`, t.id),
     index("products_title_idx").on(sql`${t.title} COLLATE NOCASE`, t.id),
+    // Publish page: "products changed since" counts by updated_at.
+    index("products_updated_at_idx").on(t.updatedAt),
+    // Similar photo filter walks only the similar ones, in title order.
+    index("products_similar_title_idx").on(sql`${t.title} COLLATE NOCASE`, t.id).where(sql`representative_photo = 1`),
   ],
 );
 
