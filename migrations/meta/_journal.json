@@ -43,6 +43,13 @@
       "when": 1795697021041,
       "tag": "0005_products_updated_similar_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1795712620599,
+      "tag": "0006_photo_similar_flag",
+      "breakpoints": true
     }
   ]
 }

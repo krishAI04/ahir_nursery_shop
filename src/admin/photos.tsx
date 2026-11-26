@@ -89,18 +89,18 @@ export function mountPhotos(admin: AdminApp) {
       await c.env.PHOTOS.delete(key).catch((e) => console.error("photo upload: could not remove mismatched upload", key, e));
       return c.json({ error: "Upload did not match its size" }, 413);
     }
-    // A real photo for a product that only had a similar one goes first and clears the "similar" mark.
+    // Real photos go before any similar (borrowed) ones, which are kept at the end.
+    // The first real photo also marks the product's existing photos as similar and clears the product's mark.
     const similar = product.representative_photo === 1;
     let row: { id: number; position: number } | undefined;
     try {
       const insert = c.env.DB.prepare(
-        similar
-          ? "INSERT INTO product_images (product_id, r2_key, position) VALUES (?, ?, (SELECT COALESCE(MIN(position), 2) - 1 FROM product_images WHERE product_id = ?)) RETURNING id, position"
-          : "INSERT INTO product_images (product_id, r2_key, position) VALUES (?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM product_images WHERE product_id = ?)) RETURNING id, position",
-      ).bind(id, key, id);
+        "INSERT INTO product_images (product_id, r2_key, position) VALUES (?, ?, COALESCE((SELECT MIN(position) FROM product_images WHERE product_id = ? AND similar = 1), (SELECT COALESCE(MAX(position), 0) + 1 FROM product_images WHERE product_id = ?))) RETURNING id, position",
+      ).bind(id, key, id, id);
       const res = await c.env.DB.batch<{ id: number; position: number }>([
-        ...(similar ? [c.env.DB.prepare("UPDATE product_images SET position = position + 1 WHERE product_id = ?").bind(id)] : []),
+        ...(similar ? [c.env.DB.prepare("UPDATE product_images SET similar = 1 WHERE product_id = ?").bind(id)] : []),
         insert,
+        c.env.DB.prepare("UPDATE product_images SET position = position + 1 WHERE product_id = ? AND similar = 1").bind(id),
         touch(c.env, id, similar ? ", representative_photo = 0" : ""),
       ]);
       row = res[similar ? 1 : 0]!.results[0];

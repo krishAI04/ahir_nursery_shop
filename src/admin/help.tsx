@@ -67,6 +67,7 @@ export function mountHelp(admin: AdminApp) {
           ],
         }}
         tip="every screen has a ? button at the top with help for that screen."
+        mainClass="hp"
       >
         {sections.map((s) => (
           <section class="card">

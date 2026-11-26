@@ -330,6 +330,9 @@ dialog.sheet{margin:auto;border-radius:22px;max-height:80vh;padding-bottom:18px}
 }
 @media (min-width:1100px){
 .top.pp{max-width:1200px}
+main.hp{max-width:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(max(380px,calc((100% - 32px) / 3)),1fr));gap:16px;align-items:start}
+main.hp>.card{margin:0;height:100%}
+main.hp>.who{display:none}
 main.pp{max-width:1200px;display:grid;grid-template-columns:5fr 6fr;grid-template-rows:repeat(6,auto) 1fr;column-gap:28px;align-items:start}
 main.pp>*{grid-column:1;min-width:0}
 main.pp>form.details{grid-column:2;grid-row:1/-1;position:sticky;top:16px}

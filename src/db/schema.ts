@@ -64,6 +64,8 @@ export const productImages = sqliteTable(
     productId: integer("product_id").notNull().references(() => products.id),
     r2Key: text("r2_key").notNull(),
     position: integer("position").notNull().default(0),
+    // 1 = a look-alike photo borrowed before a real one was taken; real uploads go before these.
+    similar: integer("similar").notNull().default(0),
   },
   (t) => [index("product_images_product_idx").on(t.productId)],
 );

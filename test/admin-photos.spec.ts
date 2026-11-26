@@ -295,6 +295,19 @@ describe("photo uploader and reorder", () => {
     expect(row.updatedAt > NOW).toBe(true);
   });
 
+  it("later real photos also go before the old similar photos, which stay last", async () => {
+    const p = await prod("rose");
+    await d().update(s.products).set({ representativePhoto: 1 }).where(eq(s.products.id, p.id));
+    const old1 = await img(p.id, "old1.jpg", 1);
+    const old2 = await img(p.id, "old2.jpg", 2);
+    const up = async () => (await (await put(`/admin/products/${p.id}/photos`, JPEG, { "content-type": "image/jpeg", "content-length": String(JPEG.length) })).json()) as { id: number; position: number };
+    const a = await up();
+    const b = await up();
+    const c = await up();
+    expect(b.position).toBe(2);
+    expect(await order(p.id)).toEqual([[a.id, 1], [b.id, 2], [c.id, 3], [old1.id, 4], [old2.id, 5]]);
+  });
+
   it("uploading to a normal product appends and bumps updated_at", async () => {
     const p = await prod("rose");
     const a = await img(p.id, "a.jpg", 1);
