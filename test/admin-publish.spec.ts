@@ -235,4 +235,45 @@ describe("admin publish page", () => {
     f.mockResolvedValue(json({ result: [dep("deploy", "success")] }));
     expect(await (await get(withHook)).text()).not.toContain("Going live");
   });
+  it("steps follow the newest deployment's stage", async () => {
+    const f = vi.spyOn(globalThis, "fetch").mockImplementation(async () => json({ result: [dep("build", "active")] }));
+    let html = await (await get(withHook)).text();
+    expect(html).toMatch(/aria-current="step"[^>]*><span class="dot">…<\/span>Building the pages/);
+    expect(html.match(/aria-current="step"/g)).toHaveLength(1);
+    f.mockImplementation(async () => json({ result: [dep("deploy", "active")] }));
+    html = await (await get(withHook)).text();
+    expect(html).toMatch(/aria-current="step"[^>]*><span class="dot">…<\/span>Going live/);
+    expect(html).toContain('aria-label="Publishing steps"');
+  });
+
+  it("with no successful deployment every product counts, one product says change", async () => {
+    await env.DB.prepare("DELETE FROM products").run();
+    const ins = (h: string) => env.DB.prepare("INSERT INTO products (handle, title, status, created_at, updated_at) VALUES (?, ?, 'draft', '2026-01-01', '2026-01-01')").bind(h, h);
+    await env.DB.batch([ins("a")]);
+    const f = vi.spyOn(globalThis, "fetch").mockImplementation(async () => json({ result: [] }));
+    expect(await (await get(withHook)).text()).toMatch(/>1<\/div><p>change since/);
+    await env.DB.batch([ins("b")]);
+    expect(await (await get(withHook)).text()).toMatch(/>2<\/div><p>changes since/);
+    f.mockImplementation(async () => json({ result: [dep("build", "failure")] }));
+    expect(await (await get(withHook)).text()).toMatch(/>2<\/div>/);
+  });
+
+  it("a newer failed deployment still counts from the live one", async () => {
+    await env.DB.prepare("DELETE FROM products").run();
+    const ins = (h: string, at: string) => env.DB.prepare("INSERT INTO products (handle, title, status, created_at, updated_at) VALUES (?, ?, 'draft', ?, ?)").bind(h, h, at, at);
+    await env.DB.batch([ins("a", "2026-11-25T04:00:00.000Z"), ins("b", "2026-11-25T06:00:00.000Z")]);
+    const failed = { ...dep("build", "failure", "f"), created_on: "2026-11-25T08:00:00Z" };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => json({ result: [failed, dep("deploy", "success")] }));
+    expect(await (await get(withHook)).text()).toMatch(/>1<\/div><p>change since/);
+  });
+
+  it("a database error hides the count but the page still renders", async () => {
+    const broken = { ...withHook, DB: { prepare: () => { throw new Error("d1 down"); } } } as unknown as Env;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => json({ result: [dep("deploy", "success")] }));
+    const res = await get(broken);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("Publish now");
+    expect(html).not.toContain("since the website");
+  });
 });

@@ -1,6 +1,6 @@
 import type { Env } from "../env";
 
-export type Deploy = { id: string; createdOn: string; status: "live" | "failed" | "cancelled" | "publishing" | "unknown"; endedOn: string | null };
+export type Deploy = { id: string; createdOn: string; status: "live" | "failed" | "cancelled" | "publishing" | "unknown"; endedOn: string | null; stage?: string };
 export type Status = { kind: "publishing" | "live" | "failed" | "cancelled" | "unknown"; text: string };
 
 /** A non-2xx answer from the Pages API; only the status code is kept, so logs never carry URLs or tokens. */
@@ -41,7 +41,7 @@ export async function latestDeployments(env: Env, fetchImpl: typeof fetch = fetc
   });
   if (!res.ok) throw new PagesApiError(res.status);
   const { result } = (await res.json()) as { result?: ApiDeploy[] };
-  return (result ?? []).map((d) => ({ id: d.id, createdOn: d.created_on, status: deployStatus(d, now), endedOn: d.latest_stage?.ended_on ?? null }));
+  return (result ?? []).map((d) => ({ id: d.id, createdOn: d.created_on, status: deployStatus(d, now), endedOn: d.latest_stage?.ended_on ?? null, ...(deployStatus(d, now) === "publishing" && d.latest_stage?.name ? { stage: d.latest_stage.name } : {}) }));
 }
 
 const clock = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit", hour12: true });

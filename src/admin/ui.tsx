@@ -138,7 +138,9 @@ main.wide{max-width:none}
 .pub p{margin:0;color:var(--muted)}
 .pubbtn{display:flex;width:100%}
 .steps{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px;margin:12px 0}
-.steps p{display:flex;align-items:center;gap:10px;margin:0;padding:5px 0}
+.steps{list-style:none}
+.steps li{display:flex;align-items:center;gap:10px;padding:5px 0}
+.steps [aria-current]{font-weight:700}
 .steps .dot{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;flex:none;background:var(--cream);color:var(--muted);font-weight:700}
 .steps .ok .dot{background:var(--mint);color:var(--forest)}
 .card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px}

@@ -26,19 +26,25 @@ const HELP = {
   ],
 };
 
-function Steps() {
+// stage: the newest deployment's Pages stage; before one exists only "Started" shows.
+function Steps(p: { stage?: string }) {
+  const at = p.stage === "deploy" ? 2 : p.stage === "build" ? 1 : -1; // index of the step in progress
+  const names = ["Started", "Building the pages", "Going live"];
   return (
-    <div class="steps" aria-label="Publishing progress">
-      <p class="ok"><span class="dot"><Icon name="check" small /></span>Started</p>
-      <p><span class="dot">…</span>Building the pages</p>
-      <p><span class="dot">…</span>Going live</p>
-    </div>
+    <ol class="steps" aria-label="Publishing steps">
+      {names.map((n, i) => (
+        <li class={i === 0 || i < at ? "ok" : undefined} aria-current={i === at ? "step" : undefined}>
+          <span class="dot">{i === 0 || i < at ? <Icon name="check" small /> : "…"}</span>
+          {n}
+        </li>
+      ))}
+    </ol>
   );
 }
 
 // self: the GET address to reload while Publishing…, so the page updates itself (a POST result reloads as a GET).
 // changes: how many products changed since the site was last live; since: when that was.
-function PublishPage(p: { email: string; status?: Status; error?: string; self?: string; changes?: number | null; since?: string }) {
+function PublishPage(p: { email: string; status?: Status; error?: string; self?: string; changes?: number | null; since?: string; stage?: string }) {
   const publishing = p.status?.kind === "publishing";
   const refresh = publishing ? `20;url=${p.self ?? "/admin/publish"}` : undefined;
   return (
@@ -59,12 +65,12 @@ function PublishPage(p: { email: string; status?: Status; error?: string; self?:
           {p.changes != null && (
             <div class="pub">
               <div class="n">{p.changes}</div>
-              <p>changes since the website was last updated{p.since ? ` (${p.since})` : ""}</p>
+              <p>{p.changes === 1 ? "change" : "changes"} since the website was last updated{p.since ? ` (${p.since})` : ""}</p>
             </div>
           )}
           <p role="status">{p.status.text}</p>
           {publishing ? (
-            <Steps />
+            <Steps stage={p.stage} />
           ) : (
             <>
               <form method="post" action="/admin/publish">
@@ -82,9 +88,12 @@ function PublishPage(p: { email: string; status?: Status; error?: string; self?:
   );
 }
 
+// The baseline is when the live build started (createdOn), not when it ended: edits made during a build may have missed it, so they count.
+// A failed D1 read just hides the count.
 async function sinceLive(env: Env, ds: Deploy[]) {
   const live = ds.find((d) => d.status === "live");
-  return { changes: await changedSince(env, live?.createdOn ?? null), since: live ? stamp(new Date(live.endedOn ?? live.createdOn), Date.now()) : undefined };
+  const changes = await changedSince(env, live?.createdOn ?? null).catch(() => null);
+  return { changes, since: live ? stamp(new Date(live.endedOn ?? live.createdOn), Date.now()) : undefined };
 }
 
 export function mountPublish(admin: AdminApp) {
@@ -97,8 +106,9 @@ export function mountPublish(admin: AdminApp) {
     const pending = started > 0 && Date.now() - started < PENDING_MS && !(ds && ds[0] && Date.parse(ds[0].createdOn) >= started);
     const status = pending ? PUBLISHING : ds ? statusLine(ds) : UNKNOWN;
     const self = started > 0 ? `/admin/publish?started=${started}` : "/admin/publish";
-    const more = ds ? await sinceLive(c.env, ds) : {};
-    return c.html(<PublishPage email={c.var.staffEmail} status={status} self={self} {...more} />);
+    const more = ds && !pending && ds[0]?.status !== "publishing" ? await sinceLive(c.env, ds) : {};
+    const stage = !pending && ds?.[0]?.status === "publishing" ? ds[0].stage : undefined;
+    return c.html(<PublishPage email={c.var.staffEmail} status={status} self={self} stage={stage} {...more} />);
   });
 
   admin.post("/admin/publish", async (c) => {
