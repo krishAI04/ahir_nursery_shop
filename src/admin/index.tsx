@@ -57,6 +57,7 @@ export function requireStaff() {
 }
 
 admin.get("/admin", (c) => c.redirect("/admin/products", 302));
+admin.get("/admin/", (c) => c.redirect("/admin/products", 302)); // staff often type the trailing slash
 
 mountProducts(admin);
 mountProductEdit(admin);
