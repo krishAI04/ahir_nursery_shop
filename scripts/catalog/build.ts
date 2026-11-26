@@ -196,3 +196,41 @@ export function buildDrafts(
   }
   return drafts;
 }
+
+/**
+ * Size families: products whose names differ only by a size word ("SC Line Round L" / "SC Line Round XL"),
+ * in the same folder, become one shop product; the import then reads each row's size from its name.
+ * The title is the name without a size when the catalogue has one ("Sc Peacock"), else the first name
+ * with its size word taken out. Products already in a colour group are left alone.
+ */
+export function sizeFamilies(rows: CatalogRow[], colourGroups: GroupRow[]): GroupRow[] {
+  const taken = new Set(colourGroups.map((g) => g.catalog_product));
+  const usable = rows.filter((r) => !["excluded", "code"].includes(classify(r.photo_source)) && r.product && !taken.has(r.product));
+  const plain = new Map(usable.map((r) => [`${r.folder}\u0000${r.product.toLowerCase()}`, r.product]));
+  const fams = new Map<string, { bases: string[]; members: Set<string> }>();
+  for (const r of usable) {
+    const raw = extractSize(r.product);
+    if (!raw) continue;
+    const esc = raw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const base = r.product
+      .replace(new RegExp(`(?<![A-Za-z0-9])${esc}(?![A-Za-z0-9])`), " ")
+      .replace(/\s+/g, " ")
+      .replace(/[\s,–-]+$/, "")
+      .trim();
+    const key = `${r.folder}\u0000${base.toLowerCase()}`;
+    const f = fams.get(key) ?? { bases: [], members: new Set<string>() };
+    f.bases.push(base);
+    f.members.add(r.product);
+    fams.set(key, f);
+  }
+  const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+  const out: GroupRow[] = [];
+  for (const [key, f] of fams) {
+    const lone = plain.get(key);
+    if (lone) f.members.add(lone);
+    if (f.members.size < 2) continue;
+    const title = lone ?? f.bases[0];
+    for (const p of f.members) out.push({ catalog_product: p, shop_product: title, colour: "" });
+  }
+  return out.sort((a, b) => cmp(a.shop_product, b.shop_product) || cmp(a.catalog_product, b.catalog_product));
+}

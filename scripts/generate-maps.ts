@@ -2,7 +2,7 @@
 // Run: npm run maps   (output is deterministic; hand-check product-groups.csv afterwards)
 import { existsSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { buildDrafts, COLOUR, colourName, countMerges } from "./catalog/build";
+import { buildDrafts, COLOUR, colourName, countMerges, sizeFamilies } from "./catalog/build";
 import { readCatalog, readGroups, readSizeLabels, toCsv } from "./catalog/csv";
 import { classify, defaultSizeLabel, extractSize } from "./catalog/size";
 
@@ -18,7 +18,7 @@ const labelsPath = path.join(root, "import", "size-labels.csv");
 const existing = existsSync(labelsPath) ? readSizeLabels(labelsPath) : new Map<string, string>();
 writeFileSync(labelsPath, toCsv([["raw", "label"], ...raws.map((r) => [r, existing.get(r) ?? defaultSizeLabel(r)])]));
 
-// product-groups.csv: colour families (same product name apart from the colour word, same folder)
+// product-groups.csv: colour families, then size families (same product name apart from the colour word, same folder)
 const families = new Map<string, Map<string, string>>(); // key -> catalog_product -> colour
 for (const r of rows) {
   if (classify(r.photo_source) === "code") continue;
@@ -42,7 +42,10 @@ for (const [key, fam] of families) {
   for (const [catalog, colour] of fam) out.push([catalog, shop, colour]);
 }
 out.sort((a, b) => cmp(a[1], b[1]) || cmp(a[2], b[2]) || cmp(a[0], b[0]));
+// Size families ("SC Line Round L" / "XL" -> "SC Line Round"): one product, a size each.
+const sizes = sizeFamilies(rows, out.map(([catalog_product, shop_product, colour]) => ({ catalog_product, shop_product, colour })));
+out.push(...sizes.map((g) => [g.catalog_product, g.shop_product, g.colour]));
 writeFileSync(path.join(root, "import", "product-groups.csv"), toCsv([["catalog_product", "shop_product", "colour"], ...out]));
-console.log(`size-labels: ${raws.length} raw sizes; product-groups: ${out.length} rows in ${new Set(out.map((o) => o[1])).size} groups`);
+console.log(`size-labels: ${raws.length} raw sizes; product-groups: ${out.length} rows in ${new Set(out.map((o) => o[1])).size} groups (${new Set(sizes.map((g) => g.shop_product)).size} by size)`);
 const drafts = buildDrafts(rows, readGroups(path.join(root, "import", "product-groups.csv")), readSizeLabels(labelsPath));
 console.log(`${drafts.length} products, ${countMerges(drafts)} raw names folded into an existing variant (same SKU)`);
