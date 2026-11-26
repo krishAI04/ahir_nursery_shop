@@ -217,6 +217,28 @@ dialog.sheet::backdrop{background:rgba(20,30,20,.45)}
 .ph .pop{position:absolute;z-index:5;left:0;top:96px;min-width:150px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:4px;box-shadow:0 6px 16px rgba(0,0,0,.18)}
 .ph .pop button{width:100%;justify-content:flex-start;background:none;color:var(--forest);padding:0 12px}
 .ph .pop button:disabled{color:#a39d8c;cursor:default}
+.ph{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;transition:transform .15s,opacity .15s}
+.ph.lift{transform:scale(1.06);opacity:.85;z-index:6}
+.ph.lift img{box-shadow:0 8px 18px rgba(0,0,0,.25)}
+.vh{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0 0 0 0)}
+.add-sheet .sub{font-size:14px;color:var(--muted);margin:2px 0 12px}
+.big{display:flex;align-items:center;gap:12px;min-height:44px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:13px;margin-bottom:8px;font-weight:700;color:var(--forest);cursor:pointer}
+.big:focus-within{outline:2px solid var(--leaf);outline-offset:1px}
+.big i{width:42px;height:42px;border-radius:12px;background:var(--mint);display:grid;place-items:center;flex:none}
+.big small{display:block;font-size:14px;font-weight:400;color:var(--muted)}
+.up{display:flex;align-items:center;gap:10px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:8px;margin-bottom:6px;font-size:14px}
+.up img,.up .th{width:42px;height:42px;border-radius:8px;object-fit:cover;flex:none;background:#f1ece0}
+.up .b{flex:1;min-width:0;overflow-wrap:anywhere}
+.up .pct{color:var(--muted)}
+.up .ok{color:var(--leaf);display:flex}
+.up .err{margin:2px 0 0;color:var(--clay);font-weight:600}
+.prog{height:6px;border-radius:3px;background:#eee6d4;margin-top:5px;overflow:hidden}
+.prog i{display:block;width:0;height:100%;background:var(--leaf);transition:width .2s}
+.good{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px;font-size:14px}
+.good p{display:flex;gap:6px;align-items:flex-start;margin:0;background:var(--paper);border-radius:10px;padding:7px 8px;border:1px solid var(--line);line-height:1.3}
+.good .y svg{color:var(--leaf)}
+.good .n2 svg{color:var(--clay)}
+body.dropping main{outline:3px dashed var(--leaf);outline-offset:-6px;border-radius:14px}
 .details>label,.picker legend{display:block;font-size:15px;font-weight:700;margin:14px 2px 6px;padding:0}
 .details>input,.details textarea{width:100%}
 .details textarea{resize:vertical}

@@ -4,7 +4,7 @@ import { imageUrl } from "../lib/images";
 import { Layout } from "./layout";
 import { Notice, type Category } from "./products";
 import { categoryPickerScript } from "./static/category-picker";
-import { shrinkScript } from "./static/shrink";
+import { uploaderScript } from "./static/uploader";
 import { Icon } from "./ui";
 
 export type Source = { raw_names: string | null; photo_source: string | null; source_url: string | null; license: string | null; author: string | null };
@@ -97,20 +97,78 @@ function Checklist(p: { v: ProductView }) {
   );
 }
 
+const tips: [boolean, string][] = [
+  [true, "Pot on a plain wall or floor"],
+  [true, "Daylight, no flash"],
+  [true, "Whole pot in the photo"],
+  [false, "No price tags or hands"],
+];
+
+/** Bottom sheet: take a photo, choose from the gallery (several at once), per-photo progress. uploaderScript drives it. */
+function AddSheet(p: { put: string; open?: boolean }) {
+  return (
+    <dialog id="add-sheet" class="sheet add-sheet" aria-labelledby="add-title" data-put={p.put} data-autoopen={p.open ? "" : undefined}>
+      <div class="grab" />
+      <div class="head">
+        <h2 id="add-title">Add photos</h2>
+        <form method="dialog">
+          <button class="x" aria-label="Close">
+            <Icon name="close" />
+          </button>
+        </form>
+      </div>
+      <p class="sub">You can pick several at once. They are made smaller before upload, so mobile data is fine.</p>
+      <label class="big">
+        <input class="vh" type="file" accept="image/*" capture="environment" />
+        <i>
+          <Icon name="camera" />
+        </i>
+        <span>
+          Take a photo<small>Opens the phone camera</small>
+        </span>
+      </label>
+      <label class="big">
+        <input class="vh" type="file" accept="image/*" multiple />
+        <i>
+          <Icon name="image" />
+        </i>
+        <span>
+          Choose from gallery<small>Pick one or many photos</small>
+        </span>
+      </label>
+      <p class="sec" data-ups-head hidden>
+        Uploading
+      </p>
+      <div data-ups aria-live="polite" />
+      <span data-ok-icon hidden>
+        <Icon name="check" small />
+      </span>
+      <div class="good">
+        {tips.map(([yes, t]) => (
+          <p class={yes ? "y" : "n2"}>
+            <Icon name={yes ? "check" : "x"} small />
+            {t}
+          </p>
+        ))}
+      </div>
+    </dialog>
+  );
+}
+
 /** The photo row: Add photos tile first, then each photo with delete and a small move menu (works without JavaScript). */
-export function PhotoStrip(p: { env: Env; v: ProductView }) {
+export function PhotoStrip(p: { env: Env; v: ProductView; openAdd?: boolean }) {
   const { product, images } = p.v;
   const base = `/admin/products/${product.id}/photos`;
   return (
     <>
-      <div class="strip">
+      <div class="strip" data-strip>
         <button type="button" class="add" data-open-add>
           <Icon name="camera" />
           Add photos
         </button>
         {images.map((i, n) => (
-          <div class="ph">
-            <img src={imageUrl(p.env, i.r2_key)} alt={n === 0 ? "Main photo" : `Photo ${n + 1}`} loading="lazy" />
+          <div class="ph" data-id={String(i.id)}>
+            <img src={imageUrl(p.env, i.r2_key)} alt={n === 0 ? "Main photo" : `Photo ${n + 1}`} loading="lazy" draggable="false" />
             {n === 0 && <span class="main">Main</span>}
             <form method="post" action={`${base}/${i.id}/delete`} onsubmit="return confirm('Delete this photo?')">
               <button type="submit" class="del" aria-label={`Delete photo ${n + 1}`}>
@@ -141,9 +199,9 @@ export function PhotoStrip(p: { env: Env; v: ProductView }) {
           </div>
         ))}
       </div>
-      <p class="hint">Hold and drag to change the order. The first photo shows in the shop list.</p>
-      <input id="pick" type="file" accept="image/*" data-put={base} hidden />
-      <p id="msg" class="hint" role="status"></p>
+      <p class="hint">{images.length > 1 ? "Hold and drag to change the order. The first photo shows in the shop list." : "The first photo shows in the shop list."}</p>
+      <p id="order-msg" class="warn" role="alert" hidden></p>
+      <AddSheet put={base} open={p.openAdd} />
     </>
   );
 }
@@ -272,16 +330,15 @@ function Info(p: { source?: Source }) {
   );
 }
 
-// Lands on the asked-for section; until the upload sheet exists the Add photos tile opens the file picker;
-// asks before leaving with unsaved name, description or category changes.
+// Lands on the asked-for section; asks before leaving with unsaved name, description or category changes
+// (window.ncOkToLeave lets the uploader ask the same before it reloads).
 const pageScript = `
 (function () {
   var details = document.querySelector("form.details");
   var dirty = false;
-  var ask = function (e) {
-    if (dirty && !confirm("You have unsaved changes to the name, description or categories. Leave without saving?")) { e.preventDefault(); e.stopImmediatePropagation(); return; }
-    dirty = false;
-  };
+  var MSG = "You have unsaved changes to the name, description or categories. Leave without saving?";
+  window.ncOkToLeave = function () { if (dirty && !confirm(MSG)) return false; dirty = false; return true; };
+  var ask = function (e) { if (!window.ncOkToLeave()) { e.preventDefault(); e.stopImmediatePropagation(); } };
   if (details) {
     var mark = function (e) { if (e.target.name) dirty = true; };
     details.addEventListener("input", mark);
@@ -292,15 +349,12 @@ const pageScript = `
     }, true);
     document.addEventListener("click", function (e) {
       var a = e.target.closest && e.target.closest("a[href]");
-      if (a && a.getAttribute("href").charAt(0) !== "#") ask(e);
+      if (!a || a.target || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button) return;
+      if (a.getAttribute("href").charAt(0) !== "#") ask(e);
     }, true);
   }
   var go = document.querySelector("[data-goto]");
   if (go) go.scrollIntoView();
-  var pick = document.getElementById("pick");
-  document.querySelectorAll("[data-open-add]").forEach(function (b) {
-    b.addEventListener("click", function () { if (!b.hasAttribute("data-wired")) pick.click(); });
-  });
 })();
 `;
 
@@ -351,7 +405,7 @@ export function ProductPage(p: {
         </button>
       </form>
       <Checklist v={p.v} />
-      <section id="photos" aria-labelledby="photos-h" data-goto={at === "photos" ? "" : undefined} data-autoopen={p.openAdd ? "" : undefined}>
+      <section id="photos" aria-labelledby="photos-h" data-goto={at === "photos" ? "" : undefined}>
         <h2 class="sec" id="photos-h">
           Photos
         </h2>
@@ -361,7 +415,7 @@ export function ProductPage(p: {
             Product hidden because it has no photo
           </p>
         )}
-        <PhotoStrip env={p.env} v={p.v} />
+        <PhotoStrip env={p.env} v={p.v} openAdd={p.openAdd} />
       </section>
       <form method="post" action={`/admin/products/${product.id}`} class="details">
         <label for="f-name">Name</label>
@@ -390,7 +444,7 @@ export function ProductPage(p: {
         <Sizes v={p.v} form={f} />
       </section>
       <Info source={p.v.source} />
-      <script>{raw(shrinkScript)}</script>
+      <script>{raw(uploaderScript)}</script>
       <script>{raw(categoryPickerScript)}</script>
       <script>{raw(pageScript)}</script>
     </Layout>
