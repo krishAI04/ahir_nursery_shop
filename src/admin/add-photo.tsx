@@ -6,8 +6,12 @@ import type { AdminApp } from "./index";
 export function mountAddPhoto(admin: AdminApp) {
   admin.get("/admin/add-photo", async (c) => {
     const q = c.req.query("q")?.trim() ?? "";
-    const s = q ? searchWhere(q) : null;
-    const rows = s ? await loadRows(c.env, [s.sql], s.args, 20) : [];
+    // Names starting with the search walk the title index (cheap); under 20 hits, search anywhere in names and old names.
+    let rows = q ? await loadRows(c.env, ["p.title COLLATE NOCASE >= ? AND p.title COLLATE NOCASE < ?"], [q, `${q}\u{10FFFF}`], 20) : [];
+    if (q && rows.length < 20) {
+      const s = searchWhere(q);
+      rows = await loadRows(c.env, [s.sql], s.args, 20);
+    }
     return c.html(
       <Layout
         title="Add a photo"

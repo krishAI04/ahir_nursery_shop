@@ -71,6 +71,28 @@ describe("admin product list", () => {
     expect(await productCounts(env)).toMatchObject({ all: 1, published: 1, needsPhoto: 1, similar: 1 });
   });
 
+  it("the README recount repairs product_stats", async () => {
+    await prod("rose", { status: "published", photo: "r.jpg", similar: true });
+    await prod("lily");
+    await env.DB.prepare("UPDATE product_stats SET total = 99, published = 99, draft = 99, needs_photo = 99, similar = 99 WHERE id = 1").run();
+    // Same SQL as README "Production checklist" step 3.
+    await env.DB.prepare(
+      "UPDATE product_stats SET (total, published, draft, needs_photo, similar) = (SELECT COUNT(*), COALESCE(SUM(status = 'published'), 0), COALESCE(SUM(status = 'draft'), 0), COALESCE(SUM(NOT EXISTS (SELECT 1 FROM product_images i WHERE i.product_id = p.id)), 0), COALESCE(SUM(representative_photo = 1), 0) FROM products p) WHERE id = 1",
+    ).run();
+    expect(await productCounts(env)).toEqual({ all: 2, published: 1, draft: 1, needsPhoto: 1, similar: 1 });
+  });
+
+  it("phone badge asks for a real photo when the photo is only similar", async () => {
+    await prod("rose", { status: "published", photo: "r.jpg", similar: true });
+    expect(await get("/admin/products")).toContain("Similar photo · take a real one");
+  });
+
+  it("laptop list is a real table with column headers", async () => {
+    await prod("rose", { status: "published", photo: "r.jpg" });
+    const html = await get("/admin/products");
+    for (const h of ["Product", "Category", "Sizes", "Photo", "Shop"]) expect(html).toContain(`<th scope="col">${h}</th>`);
+  });
+
   it("similar filter lists only similar-photo products", async () => {
     await prod("rose", { status: "published", photo: "r.jpg", similar: true });
     await prod("lily", { status: "published", photo: "l.jpg" });

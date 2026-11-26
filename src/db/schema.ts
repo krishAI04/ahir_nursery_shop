@@ -33,6 +33,7 @@ export const products = sqliteTable(
 );
 
 // One row (id 1) kept current by triggers in migration 0003, so the admin list shows counts without reading every product.
+// Never use INSERT OR REPLACE on products or product_images: REPLACE deletes without firing delete triggers, so product_stats would drift.
 export const productStats = sqliteTable("product_stats", {
   id: integer("id").primaryKey(),
   total: integer("total").notNull().default(0),
@@ -51,6 +52,7 @@ export const productCategories = sqliteTable(
   (t) => [primaryKey({ columns: [t.productId, t.categoryId] }), index("product_categories_category_idx").on(t.categoryId, t.productId)],
 );
 
+// No INSERT OR REPLACE here either (see product_stats above).
 export const productImages = sqliteTable(
   "product_images",
   {
@@ -75,7 +77,11 @@ export const variants = sqliteTable(
     hidden: integer("hidden").notNull().default(0),
     position: integer("position").notNull().default(0),
   },
-  (t) => [uniqueIndex("variants_product_size_colour_uq").on(t.productId, t.sizeLabel, sql`coalesce(${t.colour}, '')`)],
+  (t) => [
+    uniqueIndex("variants_product_size_colour_uq").on(t.productId, t.sizeLabel, sql`coalesce(${t.colour}, '')`),
+    // Small: only sizes that are out of stock or removed. The admin "Out of stock" filter starts from it instead of every product.
+    index("variants_unavailable_idx").on(t.productId).where(sql`in_stock = 0 OR hidden = 1`),
+  ],
 );
 
 export const productSources = sqliteTable("product_sources", {

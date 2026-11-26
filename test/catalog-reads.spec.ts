@@ -97,6 +97,21 @@ describe("catalogue list reads stay small with a full-size catalogue", () => {
       expect(rows, path).toBeLessThan(1500);
     }
   });
+
+  it("admin similar and out-of-stock filters read well under 1,500 rows", async () => {
+    for (const path of ["/admin/products?filter=similar", "/admin/products?filter=out-of-stock"]) {
+      const { rows } = await measure(path);
+      expect(rows, path).toBeLessThan(1500);
+    }
+  });
+
+  it("add-photo picker search reads well under 1,500 rows", async () => {
+    for (const path of ["/admin/add-photo?q=Plant%2000", "/admin/add-photo?q=plant"]) {
+      const { rows, body } = await measure(path);
+      expect(rows, path).toBeLessThan(1500);
+      if (path.endsWith("Plant%2000")) expect(body).toContain("Plant 00");
+    }
+  });
 });
 
 describe("store GET caching", () => {

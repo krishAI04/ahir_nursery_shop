@@ -1,0 +1,1 @@
+CREATE INDEX `variants_unavailable_idx` ON `variants` (`product_id`) WHERE in_stock = 0 OR hidden = 1;

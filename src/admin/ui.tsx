@@ -172,9 +172,7 @@ dialog.sheet::backdrop{background:rgba(20,30,20,.45)}
 .chip[aria-current]{background:var(--forest);border-color:var(--forest);color:#fff}
 .chip[aria-current] em{color:#dfe9e0}
 .plist{list-style:none;margin:0;padding:0}
-.plist .head,.item .c{display:none}
-.item{display:flex;gap:10px;align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:9px;margin-bottom:8px;color:var(--text);text-decoration:none}
-.item .p{flex:1;min-width:0;display:flex;gap:12px;align-items:center}
+.item{display:flex;gap:12px;align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:9px;margin-bottom:8px;color:var(--text);text-decoration:none}
 .thumb{width:56px;height:56px;border-radius:10px;object-fit:cover;flex:none;background:#f1ece0}
 .thumb.none{display:grid;place-items:center;border:1.5px dashed #cdbf9f;color:#8a7a58}
 .thumb.none svg.i{width:24px;height:24px}
@@ -184,7 +182,7 @@ dialog.sheet::backdrop{background:rgba(20,30,20,.45)}
 .item .pb .badge{margin-top:4px}
 .item .chev{color:#b9ae94;display:flex}
 .fab{position:fixed;right:16px;bottom:calc(92px + env(safe-area-inset-bottom));z-index:9;border-radius:999px;background:var(--leaf);box-shadow:0 6px 16px rgba(0,0,0,.22)}
-.stats{display:none}
+.stats,.ptable{display:none}
 .pager{display:flex;gap:8px;margin:14px 0 72px}
 @media (min-width:900px){
 .tools{display:flex;gap:12px;align-items:flex-start}
@@ -193,14 +191,17 @@ dialog.sheet::backdrop{background:rgba(20,30,20,.45)}
 .stat{margin:0;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:14px;color:var(--muted)}
 .stat b{display:block;font:400 22px "Young Serif",serif;color:var(--forest)}
 .chips{flex-wrap:wrap;margin:0 0 12px;padding:0}
-.plist.table{background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden}
-.plist.table .head,.plist.table .item{display:grid;grid-template-columns:2.4fr 1.4fr 1.2fr 1fr 1fr;gap:12px;align-items:center;margin:0;border:0;border-radius:0;padding:8px 12px}
-.plist.table .head{background:#f6f0e3;font-size:13px;font-weight:700;color:var(--muted)}
-.plist.table li+li .item{border-top:1px solid var(--line)}
-.plist.table .item:hover{background:#fbf6ec}
-.plist.table .thumb{width:40px;height:40px;border-radius:8px}
-.plist.table .meta,.plist.table .pb,.plist.table .chev{display:none}
-.plist.table .c{display:block;font-size:14px;min-width:0;overflow-wrap:anywhere}
+.plist.with-table{display:none}
+.ptable{display:table;width:100%;border-collapse:separate;border-spacing:0;background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:14px}
+.ptable th{text-align:left;font-size:14px;font-weight:700;color:var(--muted);background:#f6f0e3;padding:10px 12px}
+.ptable td{padding:8px 12px;border-top:1px solid var(--line);vertical-align:middle;overflow-wrap:anywhere}
+.ptable tr{position:relative}
+.ptable tbody tr:hover{background:#fbf6ec}
+.ptable td a{display:flex;align-items:center;gap:10px;color:var(--text);font-weight:600;text-decoration:none}
+.ptable td a::after{content:"";position:absolute;inset:0}
+.ptable a:focus-visible{outline:none}
+.ptable tr:focus-within{outline:2px solid var(--leaf);outline-offset:-2px}
+.ptable .thumb{width:40px;height:40px;border-radius:8px}
 .pager{margin-bottom:0}
 body{display:grid;grid-template-columns:210px 1fr;min-height:100vh;padding-bottom:0}
 .tabs,.top .mark,.top small,.page-tip{display:none}

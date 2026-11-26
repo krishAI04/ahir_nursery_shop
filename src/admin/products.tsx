@@ -97,56 +97,77 @@ export async function loadRows(env: Env, where: string[], args: (string | number
 
 const sizesText = (r: Row) => (r.sizes > 1 ? `${r.sizes} sizes` : r.size ?? "");
 
-/** Product rows: cards on a phone; with `table`, a five-column table from 900 px. */
+const Thumb = (p: { env: Env; r: Row; size: number }) =>
+  p.r.thumb ? (
+    <img class="thumb" src={imageUrl(p.env, p.r.thumb)} alt="" loading="lazy" width={String(p.size)} height={String(p.size)} />
+  ) : (
+    <span class="thumb none">
+      <Icon name="image" />
+    </span>
+  );
+const shopBadge = (r: Row) => (r.status === "published" ? <Badge kind="on">Showing in shop</Badge> : <Badge kind="off">Hidden</Badge>);
+
+/** Product rows as phone cards; with `table`, a real table replaces the cards from 900 px (CSS shows one or the other). */
 export function ProductRows(p: { env: Env; rows: Row[]; href: (r: Row) => string; table?: boolean }) {
   return (
-    <ul class={p.table ? "plist table" : "plist"}>
-      {p.table && (
-        <li class="head" aria-hidden="true">
-          <span>Product</span>
-          <span>Category</span>
-          <span>Sizes</span>
-          <span>Photo</span>
-          <span>Shop</span>
-        </li>
-      )}
-      {p.rows.map((r) => {
-        const shop = r.status === "published" ? <Badge kind="on">Showing in shop</Badge> : <Badge kind="off">Hidden</Badge>;
-        const photo = !r.thumb ? <Badge kind="warn">Needs a photo</Badge> : r.similar ? <Badge kind="warn">Similar photo</Badge> : null;
-        const meta = [r.category, r.sizes > 1 || r.size !== "Standard" ? sizesText(r) : ""].filter(Boolean).join(" · ");
-        return (
-          <li>
-            <a class="item" href={p.href(r)}>
-              <span class="p">
-                {r.thumb ? (
-                  <img class="thumb" src={imageUrl(p.env, r.thumb)} alt="" loading="lazy" width="56" height="56" />
-                ) : (
-                  <span class="thumb none">
-                    <Icon name="image" />
-                  </span>
-                )}
+    <>
+      <ul class={p.table ? "plist with-table" : "plist"}>
+        {p.rows.map((r) => {
+          const badge = !r.thumb ? (
+            <Badge kind="warn">Needs a photo</Badge>
+          ) : r.similar ? (
+            <Badge kind="warn">Similar photo · take a real one</Badge>
+          ) : (
+            shopBadge(r)
+          );
+          const meta = [r.category, r.sizes > 1 || r.size !== "Standard" ? sizesText(r) : ""].filter(Boolean).join(" · ");
+          return (
+            <li>
+              <a class="item" href={p.href(r)}>
+                <Thumb env={p.env} r={r} size={56} />
                 <span class="t">
                   <b>{r.title}</b>
                   {meta && <span class="meta">{meta}</span>}
-                  <span class="pb">{photo ?? shop}</span>
+                  <span class="pb">{badge}</span>
                 </span>
-              </span>
-              {p.table && (
-                <>
-                  <span class="c">{r.category ?? ""}</span>
-                  <span class="c">{sizesText(r)}</span>
-                  <span class="c">{photo ?? <Badge kind="on">Own photo</Badge>}</span>
-                  <span class="c">{shop}</span>
-                </>
-              )}
-              <span class="chev">
-                <Icon name="chevron" />
-              </span>
-            </a>
-          </li>
-        );
-      })}
-    </ul>
+                <span class="chev">
+                  <Icon name="chevron" />
+                </span>
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+      {p.table && p.rows.length > 0 && (
+        <table class="ptable">
+          <thead>
+            <tr>
+              <th scope="col">Product</th>
+              <th scope="col">Category</th>
+              <th scope="col">Sizes</th>
+              <th scope="col">Photo</th>
+              <th scope="col">Shop</th>
+            </tr>
+          </thead>
+          <tbody>
+            {p.rows.map((r) => (
+              <tr>
+                <td>
+                  <a href={p.href(r)}>
+                    <Thumb env={p.env} r={r} size={40} />
+                    <span>{r.title}</span>
+                  </a>
+                </td>
+                <td>{r.category ?? ""}</td>
+                <td>{sizesText(r)}</td>
+                <td>{!r.thumb ? <Badge kind="warn">Needs a photo</Badge> : r.similar ? <Badge kind="warn">Similar</Badge> : <Badge kind="on">Own photo</Badge>}</td>
+                <td>{shopBadge(r)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </>
   );
 }
 
@@ -224,7 +245,11 @@ export function mountProducts(admin: AdminApp) {
     }
     if (filter === "needs-photo") where.push("NOT EXISTS (SELECT 1 FROM product_images i WHERE i.product_id = p.id)");
     if (filter === "similar") where.push("p.representative_photo = 1");
-    if (filter === "out-of-stock") where.push("NOT EXISTS (SELECT 1 FROM variants v WHERE v.product_id = p.id AND v.hidden = 0 AND v.in_stock = 1)");
+    // Candidates come from the small variants_unavailable_idx, so this doesn't visit every product (every product has a size).
+    if (filter === "out-of-stock")
+      where.push(
+        "p.id IN (SELECT v.product_id FROM variants v WHERE in_stock = 0 OR hidden = 1) AND NOT EXISTS (SELECT 1 FROM variants v WHERE v.product_id = p.id AND v.hidden = 0 AND v.in_stock = 1)",
+      );
     if (filter === "no-price") where.push("EXISTS (SELECT 1 FROM variants v WHERE v.product_id = p.id AND v.hidden = 0 AND v.price_paise IS NULL)");
     // One extra row tells "Next".
     const [results, counts] = await Promise.all([loadRows(c.env, where, args, PAGE_SIZE + 1, (page - 1) * PAGE_SIZE), productCounts(c.env)]);
