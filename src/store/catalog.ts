@@ -16,11 +16,11 @@ const VISIBLE = `p.status = 'published' AND NOT EXISTS (
 const MIME: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" };
 export const isSafeKey = (key: string): boolean => !key.includes("..") && key.split("/").every((s) => s !== "" && s !== ".");
 
-type ProductRow = { id: number; handle: string; title: string; rep: number; thumb: string | null; min_price: number | null };
+type ProductRow = { id: number; handle: string; title: string; rep: number; thumb: string | null };
 type DetailRow = { id: number; handle: string; title: string; description: string | null; photo_credit: string | null; representative_photo: number };
 type CatRow = { id: number; parent_id: number | null; handle: string; is_internal: number };
 const marks = (xs: unknown[]) => xs.map(() => "?").join(", ");
-type VariantRow = { sku: string; size_label: string; colour: string | null; price_paise: number | null; in_stock: number };
+type VariantRow = { sku: string; size_label: string; colour: string | null; in_stock: number };
 
 
 catalog.get("/api/store/categories", async (c) => {
@@ -75,8 +75,7 @@ catalog.get("/api/store/products", async (c) => {
     rows = (
       await c.env.DB.prepare(
         `SELECT p.id, p.handle, p.title, p.representative_photo AS rep,
-          (SELECT r2_key FROM product_images i WHERE i.product_id = p.id ORDER BY i.position, i.id LIMIT 1) AS thumb,
-          (SELECT MIN(v.price_paise) FROM variants v WHERE v.product_id = p.id AND v.hidden = 0 AND v.in_stock = 1) AS min_price
+          (SELECT r2_key FROM product_images i WHERE i.product_id = p.id ORDER BY i.position, i.id LIMIT 1) AS thumb
         FROM products p WHERE p.id IN (${marks(pageIds)})`,
       )
         .bind(...pageIds)
@@ -91,8 +90,6 @@ catalog.get("/api/store/products", async (c) => {
           handle: r.handle,
           title: r.title,
           thumbnail_url: r.thumb ? imageUrl(c.env, r.thumb) : null,
-          min_price_paise: r.min_price ?? null,
-          price_on_request: r.min_price == null,
           representative_photo: r.rep === 1,
         }]
       : [];
@@ -109,7 +106,8 @@ catalog.get("/api/store/products/:handle", async (c) => {
   const [imgs, vars, cats] = await c.env.DB.batch([
     c.env.DB.prepare("SELECT r2_key FROM product_images WHERE product_id = ? ORDER BY position, id").bind(p.id),
     c.env.DB.prepare(
-      "SELECT sku, size_label, colour, price_paise, in_stock FROM variants WHERE product_id = ? AND hidden = 0 ORDER BY position, id",
+      // Prices are staff-only reference data: never select them for the public API.
+      "SELECT sku, size_label, colour, in_stock FROM variants WHERE product_id = ? AND hidden = 0 ORDER BY position, id",
     ).bind(p.id),
     c.env.DB.prepare(
       `SELECT c.handle, c.name FROM product_categories pc JOIN categories c ON c.id = pc.category_id
@@ -131,7 +129,6 @@ catalog.get("/api/store/products/:handle", async (c) => {
       sku: v.sku,
       size: v.size_label,
       colour: v.colour,
-      price_paise: v.price_paise,
       in_stock: v.in_stock === 1,
     })),
     photo_credit: credit,
