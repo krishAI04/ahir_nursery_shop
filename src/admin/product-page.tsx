@@ -272,9 +272,29 @@ function Info(p: { source?: Source }) {
   );
 }
 
-// Lands on the asked-for section, and until the upload sheet exists the Add photos tile opens the file picker.
+// Lands on the asked-for section; until the upload sheet exists the Add photos tile opens the file picker;
+// asks before leaving with unsaved name, description or category changes.
 const pageScript = `
 (function () {
+  var details = document.querySelector("form.details");
+  var dirty = false;
+  var ask = function (e) {
+    if (dirty && !confirm("You have unsaved changes to the name, description or categories. Leave without saving?")) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+    dirty = false;
+  };
+  if (details) {
+    var mark = function (e) { if (e.target.name) dirty = true; };
+    details.addEventListener("input", mark);
+    details.addEventListener("change", mark);
+    document.addEventListener("submit", function (e) {
+      if (e.target === details) dirty = false;
+      else if (e.target.getAttribute("method") !== "dialog") ask(e);
+    }, true);
+    document.addEventListener("click", function (e) {
+      var a = e.target.closest && e.target.closest("a[href]");
+      if (a && a.getAttribute("href").charAt(0) !== "#") ask(e);
+    }, true);
+  }
   var go = document.querySelector("[data-goto]");
   if (go) go.scrollIntoView();
   var pick = document.getElementById("pick");

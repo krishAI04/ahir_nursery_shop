@@ -1,6 +1,6 @@
 import type { Env } from "../env";
 import type { AdminApp } from "./index";
-import { ProductPage, loadProductView } from "./product-page";
+import { ProductPage, loadProductView, type Image } from "./product-page";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
@@ -36,7 +36,6 @@ function exactly(len: number) {
 }
 
 type Product = { id: number; title: string; handle: string; status: string };
-import type { Image } from "./product-page";
 
 async function load(env: Env, id: number) {
   const product = await env.DB.prepare("SELECT id, title, handle, status FROM products WHERE id = ?").bind(id).first<Product>();

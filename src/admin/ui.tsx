@@ -199,10 +199,10 @@ dialog.sheet::backdrop{background:rgba(20,30,20,.45)}
 .check .no svg{color:var(--amber)}
 .check svg.i{margin-top:2px}
 .check .ready{color:var(--forest);border-top:1px solid var(--line);margin-top:4px;padding-top:6px}
-.sec{font:800 13px/1.3 Figtree,system-ui,sans-serif;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:16px 2px 8px}
+.sec{font:800 14px/1.3 Figtree,system-ui,sans-serif;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:16px 2px 8px}
 .warn{background:var(--amberbg);color:#6b4510;padding:8px 12px;border-radius:8px}
 .strip{display:flex;flex-wrap:wrap;gap:8px}
-.strip .add{width:92px;height:92px;flex-direction:column;gap:4px;padding:0;border:2px dashed var(--leaf);background:#f0f6ef;color:var(--forest);font-size:13px;line-height:1.2}
+.strip .add{width:92px;height:92px;flex-direction:column;gap:4px;padding:0;border:2px dashed var(--leaf);background:#f0f6ef;color:var(--forest);font-size:14px;line-height:1.2}
 .strip .add svg.i{width:26px;height:26px}
 .ph{position:relative;width:92px;height:92px;flex:none}
 .ph img{width:100%;height:100%;object-fit:cover;border-radius:12px;background:#f1ece0;display:block}

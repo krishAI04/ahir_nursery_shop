@@ -77,6 +77,27 @@ describe("one product page", () => {
     expect(await get(`/admin/products/${p.id}`)).toContain('placeholder="Find a category"');
   });
 
+  it("escapes the name, description and size labels", async () => {
+    const [p] = await d()
+      .insert(s.products)
+      .values({ handle: "x", title: "Pot <script>&", description: "Desc <script>&", status: "draft", createdAt: NOW, updatedAt: NOW })
+      .returning();
+    await size(p!.id, "x-a", "Size <script>&");
+    const html = await get(`/admin/products/${p!.id}`);
+    for (const x of ["Pot &lt;script&gt;&amp;", "Desc &lt;script&gt;&amp;", "Size &lt;script&gt;&amp;"]) expect(html).toContain(x);
+    for (const x of ["Pot <script>", "Desc <script>", "Size <script>"]) expect(html).not.toContain(x);
+  });
+
+  it("a bad price re-renders the page at Sizes and keeps the typed value", async () => {
+    const p = await prod("rose");
+    const [v] = await d().insert(s.variants).values({ productId: p.id, sku: "rose-a", sizeLabel: "A", pricePaise: 10000 }).returning();
+    const r = await post(`/admin/products/${p.id}/prices`, { [`price_${v!.id}`]: "12x" });
+    expect(r.status).toBe(400);
+    const html = await r.text();
+    expect(html).toContain('id="sizes"');
+    expect(html).toContain('value="12x"');
+  });
+
   it("no-photo product refuses to show in shop", async () => {
     const p = await prod("rose");
     const r = await post(`/admin/products/${p.id}/status`, { status: "published" });
