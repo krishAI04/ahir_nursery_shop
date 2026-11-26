@@ -6,7 +6,7 @@ import { likePattern, parsePage } from "../lib/query";
 export const catalog = new Hono<{ Bindings: Env }>();
 
 const PAGE_SIZE = 24;
-// Browsers and proxies may reuse store reads for 2 minutes (price edits show up within that window).
+// Browsers and proxies may reuse store reads for 2 minutes (edits show up within that window).
 const CACHED = { "Cache-Control": "public, max-age=120" };
 // Visible = published and not linked to any internal category (e.g. Unsorted).
 const VISIBLE = `p.status = 'published' AND NOT EXISTS (
@@ -40,35 +40,57 @@ catalog.get("/api/store/categories", async (c) => {
   return c.json(roots, 200, CACHED);
 });
 
+type ListEntry = { id: number; title: string };
+// Per-Worker copy of the visible id lists (one per category filter, at most one per category), reused while
+// catalog_version.token is unchanged; triggers change the token on every write that can change the list.
+// A repeat request then reads one token row plus the page's rows instead of the whole catalogue.
+let listCache: { token: string; cats: CatRow[]; lists: Map<string, ListEntry[]> } | null = null;
+// SQLite LIKE folds ASCII letters only; match it exactly.
+const fold = (s: string) => s.replace(/[A-Z]/g, (ch) => ch.toLowerCase());
+
 catalog.get("/api/store/products", async (c) => {
   const page = parsePage(c.req.query("page"));
   const category = c.req.query("category");
   const q = c.req.query("q")?.trim();
-  // D1 bills rows read: one cheap pass picks the visible ids in title order (index walk), then only the page's rows are joined.
-  const { results: cats } = await c.env.DB.prepare("SELECT id, parent_id, handle, is_internal FROM categories").all<CatRow>();
-  const hidden = cats.filter((x) => x.is_internal === 1).map((x) => x.id);
-  const args: (string | number)[] = [];
-  let from = "products p WHERE";
-  if (category) {
-    const handleOf = new Map(cats.map((x) => [x.id, x.handle]));
-    const ids = cats.filter((x) => x.handle === category || (x.parent_id != null && handleOf.get(x.parent_id) === category)).map((x) => x.id);
-    if (!ids.length) return c.json({ items: [], page, total: 0 }, 200, CACHED);
-    // CROSS JOIN pins the loop order: start from the category rows, not a title-index walk with one seek per category id.
-    from = `product_categories pcf CROSS JOIN products p ON p.id = pcf.product_id WHERE pcf.category_id IN (${marks(ids)}) AND`;
-    args.push(...ids);
+  const token = (await c.env.DB.prepare("SELECT token FROM catalog_version WHERE id = 1").first<{ token: string }>())?.token ?? "";
+  // Reads after the token are at least as new as it, so a cached list is never older than its token.
+  if (!token || listCache?.token !== token) {
+    const { results } = await c.env.DB.prepare("SELECT id, parent_id, handle, is_internal FROM categories").all<CatRow>();
+    listCache = { token, cats: results, lists: new Map() };
   }
-  let where = "p.status = 'published'";
-  if (hidden.length) {
-    where += ` AND NOT EXISTS (SELECT 1 FROM product_categories pc WHERE pc.product_id = p.id AND pc.category_id IN (${marks(hidden)}))`;
-    args.push(...hidden);
+  const cache = listCache;
+  const cats = cache.cats;
+  const key = category ?? "";
+  let list = cache.lists.get(key);
+  if (!list) {
+    // D1 bills rows read: one cheap pass picks the visible ids in title order (index walk), then only the page's rows are joined.
+    const hidden = cats.filter((x) => x.is_internal === 1).map((x) => x.id);
+    const args: (string | number)[] = [];
+    let from = "products p WHERE";
+    if (category) {
+      const handleOf = new Map(cats.map((x) => [x.id, x.handle]));
+      const ids = cats.filter((x) => x.handle === category || (x.parent_id != null && handleOf.get(x.parent_id) === category)).map((x) => x.id);
+      if (!ids.length) return c.json({ items: [], page, total: 0 }, 200, CACHED);
+      // CROSS JOIN pins the loop order: start from the category rows, not a title-index walk with one seek per category id.
+      from = `product_categories pcf CROSS JOIN products p ON p.id = pcf.product_id WHERE pcf.category_id IN (${marks(ids)}) AND`;
+      args.push(...ids);
+    }
+    let where = "p.status = 'published'";
+    if (hidden.length) {
+      where += ` AND NOT EXISTS (SELECT 1 FROM product_categories pc WHERE pc.product_id = p.id AND pc.category_id IN (${marks(hidden)}))`;
+      args.push(...hidden);
+    }
+    list = (await c.env.DB.prepare(`SELECT DISTINCT p.id, p.title FROM ${from} ${where} ORDER BY p.title COLLATE NOCASE, p.id`)
+      .bind(...args)
+      .all<ListEntry>()).results;
+    if (token) cache.lists.set(key, list);
   }
+  let all = list;
   if (q) {
-    where += ` AND p.title LIKE ? ESCAPE '!'`;
-    args.push(likePattern(q));
+    // Same match as the old SQL `title LIKE likePattern(q) ESCAPE '!'`: same length cap, literal % and _.
+    const needle = fold(likePattern(q).slice(1, -1).replace(/!(.)/gu, "$1"));
+    all = list.filter((r) => fold(r.title).includes(needle));
   }
-  const { results: all } = await c.env.DB.prepare(`SELECT DISTINCT p.id FROM ${from} ${where} ORDER BY p.title COLLATE NOCASE, p.id`)
-    .bind(...args)
-    .all<{ id: number }>();
   const pageIds = all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((r) => r.id);
   let rows: ProductRow[] = [];
   if (pageIds.length) {

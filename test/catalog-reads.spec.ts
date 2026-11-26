@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { app } from "../src/index";
 import type { Env } from "../src/env";
+import { likePattern } from "../src/lib/query";
 
 // D1 free plan: 5M rows read/day. Seed a catalogue the size of the real import and count rows_read per request.
 const NOW = "2026-11-20T00:00:00.000Z";
@@ -84,6 +85,54 @@ describe("catalogue list reads stay small with a full-size catalogue", () => {
     const leaf = await measure("/api/store/products?category=pots");
     expect(leaf.body.total).toBe(600);
     expect(leaf.rows).toBeLessThan(3000);
+  });
+
+  it("repeat list requests read only a few rows and match a fresh read", async () => {
+    const sqlTotal = async (q: string) =>
+      (await env.DB.prepare(
+        `SELECT COUNT(*) AS n FROM products p WHERE p.status = 'published' AND p.title LIKE ? ESCAPE '!'
+         AND NOT EXISTS (SELECT 1 FROM product_categories pc WHERE pc.product_id = p.id AND pc.category_id = 5)`,
+      ).bind(likePattern(q)).first<{ n: number }>())!.n;
+    const paths = [
+      "/api/store/products?page=2",
+      "/api/store/products?page=30",
+      "/api/store/products?q=Plant%2001",
+      "/api/store/products?q=plant%200",
+      "/api/store/products?q=100%25",
+      "/api/store/products?category=plants&page=3",
+      "/api/store/products?category=pots",
+    ];
+    for (const path of paths) {
+      // Any catalogue write makes the next request read fresh from the database.
+      await env.DB.prepare("UPDATE categories SET name = name WHERE id = 1").run();
+      const fresh = await measure(path);
+      const again = await measure(path);
+      expect(again.rows, path).toBeLessThan(150); // one token row plus the 24-item page join
+      expect(again.body, path).toEqual(fresh.body);
+    }
+    expect((await measure("/api/store/products?q=Plant%2001")).body.total).toBe(await sqlTotal("Plant 01"));
+    expect((await measure("/api/store/products?q=plant%200")).body.total).toBe(await sqlTotal("plant 0"));
+    expect((await measure("/api/store/products?q=100%25")).body.total).toBe(0);
+  });
+
+  it("a catalogue change shows on the very next list request", async () => {
+    const total = async (path = "/api/store/products") => (await measure(path)).body.total;
+    expect(await total()).toBe(900);
+    await env.DB.prepare("UPDATE products SET status = 'draft' WHERE id = 1").run();
+    expect(await total()).toBe(899);
+    await env.DB.prepare("UPDATE products SET status = 'published' WHERE id = 1").run();
+    expect(await total("/api/store/products?category=pots")).toBe(600);
+    await env.DB.prepare("UPDATE categories SET is_internal = 1 WHERE id = 4").run();
+    expect(await total("/api/store/products?category=pots")).toBe(0);
+    expect(await total()).toBe(300);
+    await env.DB.prepare("UPDATE categories SET is_internal = 0 WHERE id = 4").run();
+    await env.DB.prepare("INSERT INTO product_categories (product_id, category_id) VALUES (2, 5)").run();
+    expect(await total()).toBe(899);
+    await env.DB.prepare("DELETE FROM product_categories WHERE product_id = 2 AND category_id = 5").run();
+    await env.DB.prepare("UPDATE products SET title = 'Aaa first' WHERE id = 3").run();
+    expect((await measure("/api/store/products")).body.items[0].handle).toBe("p3");
+    await env.DB.prepare("UPDATE products SET title = 'Plant ' || printf('%04d', (id * 7919) % 1120) WHERE id = 3").run();
+    expect(await total()).toBe(900);
   });
 
   it("product detail reads only a few rows", async () => {
