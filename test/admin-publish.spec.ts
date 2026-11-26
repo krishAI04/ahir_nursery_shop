@@ -212,4 +212,27 @@ describe("admin publish page", () => {
     const off = await (await admin.request(`${BASE}/admin/products`, {}, noHook)).text();
     expect(off).not.toContain("/admin/publish");
   });
+  it("publish page shows how many products changed since the site went live", async () => {
+    await env.DB.prepare("DELETE FROM products").run();
+    const ins = (h: string, at: string) => env.DB.prepare("INSERT INTO products (handle, title, status, created_at, updated_at) VALUES (?, ?, 'draft', ?, ?)").bind(h, h, at, at);
+    await env.DB.batch([ins("a", "2026-11-25T06:00:00.000Z"), ins("b", "2026-11-25T07:00:00.000Z"), ins("c", "2026-11-25T04:00:00.000Z")]);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ result: [dep("deploy", "success")] }));
+    const html = await (await get(withHook)).text();
+    expect(html).toMatch(/>2<\/div>/);
+    expect(html).toContain("changes since the website was last updated");
+  });
+
+  it("publish page mentions the nightly update", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ result: [dep("deploy", "success")] }));
+    expect(await (await get(withHook)).text()).toContain("every night at 2 am");
+  });
+
+  it("publish page shows progress steps only while publishing", async () => {
+    const f = vi.spyOn(globalThis, "fetch").mockResolvedValue(json({ result: [dep("build", "active")] }));
+    const busy = await (await get(withHook)).text();
+    expect(busy).toContain("Building the pages");
+    expect(busy).toContain("Going live");
+    f.mockResolvedValue(json({ result: [dep("deploy", "success")] }));
+    expect(await (await get(withHook)).text()).not.toContain("Going live");
+  });
 });

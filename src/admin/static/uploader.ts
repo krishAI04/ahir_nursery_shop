@@ -20,12 +20,12 @@ export const uploaderScript = `
   // Photos already added show up once the sheet is closed.
   sheet.addEventListener("close", function () { if (added && !busy) reload(true); });
 
-  // Reads only the size first, so a big camera photo can be decoded straight at 2000 px where the browser allows it.
+  // Reads only the (EXIF-oriented) size first, so a big camera photo can be decoded straight at 2000 px where the browser allows it.
   function size(file) {
-    return new Promise(function (ok, no) {
+    return new Promise(function (res, rej) {
       var u = URL.createObjectURL(file), i = new Image();
-      i.onload = function () { URL.revokeObjectURL(u); ok([i.naturalWidth, i.naturalHeight]); };
-      i.onerror = function () { URL.revokeObjectURL(u); no(); };
+      i.onload = function () { URL.revokeObjectURL(u); res([i.naturalWidth, i.naturalHeight]); };
+      i.onerror = function () { URL.revokeObjectURL(u); rej(); };
       i.src = u;
     });
   }
@@ -33,10 +33,10 @@ export const uploaderScript = `
     return size(file)
       .then(function (wh) {
         var s = Math.min(1, 2000 / Math.max(wh[0], wh[1]));
-        if (s === 1) return createImageBitmap(file);
-        return createImageBitmap(file, { resizeWidth: Math.round(wh[0] * s), resizeHeight: Math.round(wh[1] * s), resizeQuality: "high" });
+        if (s === 1) return createImageBitmap(file, { imageOrientation: "from-image" });
+        return createImageBitmap(file, { resizeWidth: Math.round(wh[0] * s), resizeHeight: Math.round(wh[1] * s), resizeQuality: "high", imageOrientation: "from-image" });
       })
-      .catch(function () { return createImageBitmap(file); });
+      .catch(function () { return createImageBitmap(file, { imageOrientation: "from-image" }); });
   }
 
   function shrink(file) {
@@ -50,20 +50,20 @@ export const uploaderScript = `
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
       if (bmp.close) bmp.close();
-      return new Promise(function (ok, no) {
-        canvas.toBlob(function (b) { canvas.width = canvas.height = 0; b ? ok(b) : no(); }, "image/jpeg", 0.85);
+      return new Promise(function (res, rej) {
+        canvas.toBlob(function (b) { canvas.width = canvas.height = 0; b ? res(b) : rej(); }, "image/jpeg", 0.85);
       });
     });
   }
 
   function send(blob, onPct) {
-    return new Promise(function (ok, no) {
+    return new Promise(function (res, rej) {
       var x = new XMLHttpRequest();
       x.open("PUT", put);
       x.setRequestHeader("Content-Type", "image/jpeg");
       x.upload.onprogress = function (e) { if (e.lengthComputable) onPct(Math.round((e.loaded / e.total) * 100)); };
-      x.onload = function () { x.status >= 200 && x.status < 300 ? ok() : no(); };
-      x.onerror = x.onabort = function () { no(); };
+      x.onload = function () { x.status >= 200 && x.status < 300 ? res() : rej(); };
+      x.onerror = x.onabort = function () { rej(); };
       x.send(blob);
     });
   }

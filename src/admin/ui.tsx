@@ -133,6 +133,14 @@ main.wide{max-width:none}
 .b-on{background:var(--mint);color:var(--leaf)}
 .b-off{background:#eee9de;color:var(--muted)}
 .b-warn{background:var(--amberbg);color:#8a5a12}
+.pub{text-align:center;padding:20px 10px}
+.pub .n{font:400 44px "Young Serif",serif;color:var(--forest);line-height:1.2}
+.pub p{margin:0;color:var(--muted)}
+.pubbtn{display:flex;width:100%}
+.steps{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px;margin:12px 0}
+.steps p{display:flex;align-items:center;gap:10px;margin:0;padding:5px 0}
+.steps .dot{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;flex:none;background:var(--cream);color:var(--muted);font-weight:700}
+.steps .ok .dot{background:var(--mint);color:var(--forest)}
 .card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px}
 .card h2{display:flex;align-items:center;gap:10px;margin:0 0 6px;font-size:18px}
 .card h2 svg.i{width:20px;height:20px}
