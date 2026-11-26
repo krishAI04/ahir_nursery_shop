@@ -136,6 +136,9 @@ function AddSheet(p: { put: string; open?: boolean }) {
           Choose from gallery<small>Pick one or many photos</small>
         </span>
       </label>
+      <p class="warn" role="alert" data-only hidden>
+        Only photos can be added
+      </p>
       <p class="sec" data-ups-head hidden>
         Uploading
       </p>

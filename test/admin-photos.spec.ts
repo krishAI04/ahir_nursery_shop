@@ -347,3 +347,29 @@ describe("photo uploader and reorder", () => {
     expect(html).toContain(`data-put="/admin/products/${p.id}/photos"`);
   });
 });
+
+describe("photo upload review fixes", () => {
+  it("a failed upload batch removes the stored object and changes no row or mark", async () => {
+    for (const t of [s.orderStatusLog, s.refunds, s.orderItems, s.orders, s.variants, s.productImages, s.productSources, s.productCategories, s.products, s.categories]) {
+      await d().delete(t);
+    }
+    const { objects } = await env.PHOTOS.list();
+    for (const o of objects) await env.PHOTOS.delete(o.key);
+    const p = await prod("rf-rose");
+    await d().update(s.products).set({ representativePhoto: 1 }).where(eq(s.products.id, p.id));
+    const old = await img(p.id, "rf-old.jpg", 1);
+    const failing = {
+      ...devEnv,
+      DB: { prepare: (sql: string) => env.DB.prepare(sql), batch: async () => { throw new Error("d1 down"); } },
+    } as unknown as Env;
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await admin.request(`${BASE}/admin/products/${p.id}/photos`, { method: "PUT", body: JPEG, headers: { "content-type": "image/jpeg", "content-length": "8" } }, failing);
+    spy.mockRestore();
+    expect(res.status).toBe(500);
+    expect((await env.PHOTOS.list({ prefix: "products/" })).objects).toHaveLength(0);
+    expect((await imagesOf(p.id)).map((r) => [r.id, r.position])).toEqual([[old.id, 1]]);
+    const [row] = await d().select().from(s.products).where(eq(s.products.id, p.id));
+    expect(row!.representativePhoto).toBe(1);
+    expect(row!.updatedAt).toBe(NOW);
+  });
+});

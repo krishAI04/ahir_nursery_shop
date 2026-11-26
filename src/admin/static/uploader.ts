@@ -8,7 +8,9 @@ export const uploaderScript = `
   var put = sheet.getAttribute("data-put");
   var list = sheet.querySelector("[data-ups]");
   var head = sheet.querySelector("[data-ups-head]");
-  var queue = [], busy = false, added = 0, failed = 0;
+  // added: photos saved since the page loaded (closing the sheet shows them); ok/bad: counts for the current batch.
+  var queue = [], busy = false, added = 0, ok = 0, bad = 0;
+  var only = sheet.querySelector("[data-only]");
   var open = function () { if (!sheet.open) sheet.showModal(); };
   // Back to the photos part of this page (without ?add=1, so the sheet does not open again).
   var reload = function (saved) { if (!window.ncOkToLeave || window.ncOkToLeave()) location.replace(put + (saved ? "?saved=1" : "")); };
@@ -18,8 +20,27 @@ export const uploaderScript = `
   // Photos already added show up once the sheet is closed.
   sheet.addEventListener("close", function () { if (added && !busy) reload(true); });
 
+  // Reads only the size first, so a big camera photo can be decoded straight at 2000 px where the browser allows it.
+  function size(file) {
+    return new Promise(function (ok, no) {
+      var u = URL.createObjectURL(file), i = new Image();
+      i.onload = function () { URL.revokeObjectURL(u); ok([i.naturalWidth, i.naturalHeight]); };
+      i.onerror = function () { URL.revokeObjectURL(u); no(); };
+      i.src = u;
+    });
+  }
+  function decode(file) {
+    return size(file)
+      .then(function (wh) {
+        var s = Math.min(1, 2000 / Math.max(wh[0], wh[1]));
+        if (s === 1) return createImageBitmap(file);
+        return createImageBitmap(file, { resizeWidth: Math.round(wh[0] * s), resizeHeight: Math.round(wh[1] * s), resizeQuality: "high" });
+      })
+      .catch(function () { return createImageBitmap(file); });
+  }
+
   function shrink(file) {
-    return createImageBitmap(file).then(function (bmp) {
+    return decode(file).then(function (bmp) {
       var scale = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
       var canvas = document.createElement("canvas");
       canvas.width = Math.round(bmp.width * scale);
@@ -29,7 +50,9 @@ export const uploaderScript = `
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
       if (bmp.close) bmp.close();
-      return new Promise(function (ok, no) { canvas.toBlob(function (b) { b ? ok(b) : no(); }, "image/jpeg", 0.85); });
+      return new Promise(function (ok, no) {
+        canvas.toBlob(function (b) { canvas.width = canvas.height = 0; b ? ok(b) : no(); }, "image/jpeg", 0.85);
+      });
     });
   }
 
@@ -53,9 +76,15 @@ export const uploaderScript = `
     list.appendChild(r);
     head.hidden = false;
     return {
-      thumb: function (blob) { var i = document.createElement("img"); i.alt = ""; i.src = URL.createObjectURL(blob); r.querySelector(".th").replaceWith(i); },
+      thumb: function (blob) {
+        var i = document.createElement("img");
+        i.alt = "";
+        i.onload = i.onerror = function () { URL.revokeObjectURL(i.src); };
+        i.src = URL.createObjectURL(blob);
+        r.querySelector(".th").replaceWith(i);
+      },
       pct: function (n, text) { r.querySelector(".pct").textContent = " \\u00b7 " + (text || n + "%"); r.querySelector(".prog i").style.width = n + "%"; },
-      done: function () { r.querySelector(".pct").textContent = ""; r.insertAdjacentHTML("beforeend", '<span class="ok" aria-label="Uploaded">' + sheet.querySelector("[data-ok-icon]").innerHTML + "</span>"); },
+      done: function () { r.querySelector(".pct").textContent = ""; r.insertAdjacentHTML("beforeend", '<span class="ok">' + sheet.querySelector("[data-ok-icon]").innerHTML + '<span class="vh">Uploaded</span></span>'); },
       fail: function () { r.classList.add("bad"); r.querySelector(".pct").textContent = ""; r.querySelector(".prog").hidden = true; r.querySelector(".err").hidden = false; },
     };
   }
@@ -65,25 +94,28 @@ export const uploaderScript = `
     if (!job) {
       busy = false;
       // All went well: show them. If one failed, keep the sheet so its message stays; closing it shows the rest.
-      if (added && (!failed || !sheet.open)) reload(true);
+      if (sheet.open ? ok && !bad : added) reload(true);
       return;
     }
     busy = true;
     job.ui.pct(0, "getting ready");
     shrink(job.file)
       .then(function (blob) { job.ui.thumb(blob); job.ui.pct(0); return send(blob, job.ui.pct); })
-      .then(function () { added++; job.ui.done(); }, function () { failed++; job.ui.fail(); })
+      .then(function () { added++; ok++; job.ui.done(); }, function () { bad++; job.ui.fail(); })
       .then(next);
   }
 
   function add(files) {
-    var some = false;
-    Array.prototype.forEach.call(files, function (f) {
-      if (!/^image\\//.test(f.type) && !/\\.(jpe?g|png|webp|heic|heif|gif|avif)$/i.test(f.name)) return;
-      queue.push({ file: f, ui: row(f) });
-      some = true;
+    var photos = Array.prototype.filter.call(files, function (f) {
+      return /^image\\//.test(f.type) || /\\.(jpe?g|png|webp|heic|heif|gif|avif)$/i.test(f.name);
     });
-    if (some) { open(); if (!busy) next(); }
+    if (!files.length) return;
+    open();
+    only.hidden = photos.length > 0;
+    if (!photos.length) return;
+    if (!busy) { ok = 0; bad = 0; }
+    photos.forEach(function (f) { queue.push({ file: f, ui: row(f) }); });
+    if (!busy) next();
   }
 
   sheet.querySelectorAll("input[type=file]").forEach(function (inp) {
@@ -122,6 +154,8 @@ export const uploaderScript = `
   document.addEventListener("pointermove", function (e) {
     var d = drag;
     if (!d || e.pointerId !== d.id) return;
+    // The button was let go outside the window: finish the drag here.
+    if (e.pointerType === "mouse" && !e.buttons) return end(e);
     var far = Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 8;
     if (!d.on) {
       if (!far) return;
@@ -135,6 +169,7 @@ export const uploaderScript = `
     var all = tiles();
     strip.insertBefore(d.tile, all.indexOf(t) > all.indexOf(d.tile) ? t.nextSibling : t);
   });
+  var saving = Promise.resolve();
   var end = function (e) {
     var d = drag;
     if (!d || e.pointerId !== d.id) return;
@@ -144,7 +179,11 @@ export const uploaderScript = `
     var now = ids();
     if (!d.on || now === d.before) return;
     renumber();
-    fetch(put + "/order", { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" }, body: "order=" + encodeURIComponent(now) })
+    // One save at a time, in drag order, so an older order can never land after a newer one.
+    saving = saving
+      .then(function () {
+        return fetch(put + "/order", { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" }, body: "order=" + encodeURIComponent(now) });
+      })
       .then(function (r) { if (!r.ok) throw new Error(); })
       .catch(function () {
         var m = document.getElementById("order-msg");
