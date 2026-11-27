@@ -173,7 +173,7 @@ export function PhotoStrip(p: { env: Env; v: ProductView; openAdd?: boolean }) {
           <div class="ph" data-id={String(i.id)}>
             <img src={imageUrl(p.env, i.r2_key)} alt={n === 0 ? "Main photo" : `Photo ${n + 1}`} loading="lazy" draggable="false" />
             {n === 0 && <span class="main">Main</span>}
-            <form method="post" action={`${base}/${i.id}/delete`} onsubmit="return confirm('Delete this photo?')">
+            <form method="post" action={`${base}/${i.id}/delete`} data-confirm="Delete this photo?">
               <button type="submit" class="del" aria-label={`Delete photo ${n + 1}`}>
                 <span>
                   <Icon name="trash" small />

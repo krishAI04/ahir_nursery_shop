@@ -81,6 +81,11 @@ export function HelpSheet(p: { title: string; steps: string[]; email?: string })
 }
 
 export const shellScript = `
+// Forms with data-confirm ask first (the admin CSP blocks inline onsubmit code).
+document.addEventListener("submit", function (e) {
+  var q = e.target.getAttribute && e.target.getAttribute("data-confirm");
+  if (q && !confirm(q)) e.preventDefault();
+}, true);
 document.querySelectorAll("[data-tip]").forEach(function (t) {
   var key = "nc-admin-tip-" + t.getAttribute("data-tip");
   try { if (localStorage.getItem(key)) t.hidden = true; } catch (e) {}
