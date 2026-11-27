@@ -1,6 +1,6 @@
 # Nature Care backend
 
-Cloudflare Worker (Hono, TypeScript) with D1 (database) and R2 (photos). It serves the store API under `/api/store` and the staff admin under `/admin`. There is no online payment: customers ask for prices on WhatsApp (`GET /api/store/contact` gives the shop's WhatsApp link; the storefront adds `?text=` with the product and size).
+Cloudflare Worker (Hono, TypeScript) with D1 (database) and R2 (photos). It serves the store API under `/api/store` and the staff admin under `/admin`. With `ADMIN_HOST` set (production: `admin.natureecarenursery.in`), the admin is served only on that host and the store API only on the others; `/admin` links on the API host redirect there. There is no online payment: customers ask for prices on WhatsApp (`GET /api/store/contact` gives the shop's WhatsApp link; the storefront adds `?text=` with the product and size).
 
 ## Local setup
 

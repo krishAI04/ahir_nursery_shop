@@ -6,6 +6,8 @@ export type Env = {
   ACCESS_TEAM_DOMAIN: string;
   ACCESS_AUD: string;
   ADMIN_USERNAME: string;
+  /** Host the admin is served on (e.g. admin.example.com). Empty: admin and API share every host. */
+  ADMIN_HOST: string;
   ADMIN_PASSWORD_HASH: string;
   IMAGE_BASE_URL: string;
   SHOP_WHATSAPP: string;

@@ -21,6 +21,7 @@
     "ACCESS_TEAM_DOMAIN": "",
     "ACCESS_AUD": "",
     "ADMIN_USERNAME": "staff",
+    "ADMIN_HOST": "",
     "IMAGE_BASE_URL": "",
     "SHOP_WHATSAPP": "919999999999",
     "CF_ACCOUNT_ID": "",
