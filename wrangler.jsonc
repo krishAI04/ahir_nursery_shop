@@ -13,7 +13,10 @@
     }
   ],
   // The API and admin live on the shop's own domain so zone rules (rate limiting, WAF) cover them.
-  "routes": [{ "pattern": "api.natureecarenursery.in", "custom_domain": true }],
+  "routes": [
+    { "pattern": "api.natureecarenursery.in", "custom_domain": true },
+    { "pattern": "admin.natureecarenursery.in", "custom_domain": true }
+  ],
   // Off so the only way in is the shop domain, where the zone's security rules apply.
   "workers_dev": false,
   "triggers": { "crons": ["30 20 * * *", "*/30 * * * *"] },
@@ -25,6 +28,7 @@
     "ACCESS_AUD": "",
     // Shared staff username for the admin sign-in. The password is the secret ADMIN_PASSWORD_HASH (npm run admin-password).
     "ADMIN_USERNAME": "staff",
+    "ADMIN_HOST": "admin.natureecarenursery.in",
     "IMAGE_BASE_URL": "https://api.natureecarenursery.in/img/",
     // Shop WhatsApp number for price enquiries: country code + number, digits only (e.g. 9198XXXXXXXX). Set before go-live.
     "SHOP_WHATSAPP": "918817722220",
