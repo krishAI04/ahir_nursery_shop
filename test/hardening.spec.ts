@@ -91,3 +91,17 @@ describe("unexpected errors", () => {
     expect(body).not.toMatch(/TypeError|at |\.ts/);
   });
 });
+
+describe("no inline event handlers (the CSP would block them)", () => {
+  it("admin pages use data-confirm instead of onsubmit, and the shell script handles it", async () => {
+    const p = await env.DB.prepare("INSERT INTO products (handle, title, status, created_at, updated_at) VALUES ('csp-rose', 'Rose', 'draft', '2026-01-01', '2026-01-01') RETURNING id").first<{ id: number }>();
+    await env.DB.prepare("INSERT INTO product_images (product_id, r2_key, position) VALUES (?, 'csp-a.jpg', 1)").bind(p!.id).run();
+    for (const path of [`/admin/products/${p!.id}`, `/admin/products/${p!.id}/photos`, "/admin/products", "/admin/help", "/admin/publish"]) {
+      const html = await (await app.request(`${BASE}${path}`, { headers: { Cookie: cookie } }, prod)).text();
+      expect(html, path).not.toMatch(/<[^>]+\son[a-z]+=/i);
+    }
+    const photos = await (await app.request(`${BASE}/admin/products/${p!.id}/photos`, { headers: { Cookie: cookie } }, prod)).text();
+    expect(photos).toContain('data-confirm="Delete this photo?"');
+    expect(photos).toContain('getAttribute("data-confirm")');
+  });
+});
