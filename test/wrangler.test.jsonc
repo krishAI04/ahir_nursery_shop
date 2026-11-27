@@ -20,6 +20,7 @@
     "STOREFRONT_ORIGINS": "http://localhost:3000",
     "ACCESS_TEAM_DOMAIN": "",
     "ACCESS_AUD": "",
+    "ADMIN_USERNAME": "staff",
     "IMAGE_BASE_URL": "",
     "SHOP_WHATSAPP": "919999999999",
     "CF_ACCOUNT_ID": "",
