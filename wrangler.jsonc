@@ -12,6 +12,10 @@
       "migrations_dir": "migrations"
     }
   ],
+  // The API and admin live on the shop's own domain so zone rules (rate limiting, WAF) cover them.
+  "routes": [{ "pattern": "api.natureecarenursery.in", "custom_domain": true }],
+  // Off so the only way in is the shop domain, where the zone's security rules apply.
+  "workers_dev": false,
   "triggers": { "crons": ["30 20 * * *", "*/30 * * * *"] },
   "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "nature-care-photos" }],
   "vars": {
@@ -21,7 +25,7 @@
     "ACCESS_AUD": "",
     // Shared staff username for the admin sign-in. The password is the secret ADMIN_PASSWORD_HASH (npm run admin-password).
     "ADMIN_USERNAME": "staff",
-    "IMAGE_BASE_URL": "https://nature-care-backend.nature-care-backend.workers.dev/img/",
+    "IMAGE_BASE_URL": "https://api.natureecarenursery.in/img/",
     // Shop WhatsApp number for price enquiries: country code + number, digits only (e.g. 9198XXXXXXXX). Set before go-live.
     "SHOP_WHATSAPP": "918817722220",
     // Pages publishing. PAGES_DEPLOY_HOOK and CF_API_TOKEN are secrets (see README), not vars.
