@@ -8,6 +8,8 @@ export type Env = {
   ADMIN_USERNAME: string;
   /** Host the admin is served on (e.g. admin.example.com). Empty: admin and API share every host. */
   ADMIN_HOST: string;
+  /** "on": public store reads are shared through Cloudflare's edge cache (src/lib/edge-cache.ts). */
+  EDGE_CACHE: string;
   ADMIN_PASSWORD_HASH: string;
   IMAGE_BASE_URL: string;
   SHOP_WHATSAPP: string;

@@ -18,7 +18,8 @@ export type AdminApp = Hono<AdminEnv>;
 export const admin: AdminApp = new Hono<AdminEnv>();
 
 admin.use("/admin", requireStaff());
-admin.use("/admin/*", (c, next) => adminRequest.run({ canPublish: !!c.env.PAGES_DEPLOY_HOOK }, next));
+const newNonce = () => btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
+admin.use("/admin/*", (c, next) => adminRequest.run({ canPublish: !!c.env.PAGES_DEPLOY_HOOK, nonce: newNonce() }, next));
 admin.use("/admin/*", requireStaff());
 
 // Session and Access cookies ride along on cross-site top-level POSTs, so refuse any POST from another origin.
@@ -46,7 +47,7 @@ export function requireStaff() {
       }
     }
     await next();
-    setSecurityHeaders(c.res.headers);
+    setSecurityHeaders(c.res.headers, { nonce: adminRequest.getStore()?.nonce, imageBase: c.env.IMAGE_BASE_URL });
   };
 }
 
