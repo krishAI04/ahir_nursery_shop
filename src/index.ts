@@ -3,6 +3,7 @@ import type { Env } from "./env";
 import { storefrontCors } from "./lib/cors";
 import { catalog } from "./store/catalog";
 import { admin } from "./admin/index";
+import { adminLogin } from "./admin/login";
 import { runPublishCron } from "./cron/publish";
 
 export const app = new Hono<{ Bindings: Env }>();
@@ -11,6 +12,8 @@ app.get("/api/health", (c) => c.json({ ok: true }));
 app.use("/api/store/*", storefrontCors);
 app.route("/", catalog);
 // All /admin routes must be added to the `admin` sub-app (behind requireStaff), never on this parent app.
+// The only exception is POST /admin/login, which has to work before anyone is signed in.
+app.route("/", adminLogin);
 app.route("/", admin);
 
 export default {

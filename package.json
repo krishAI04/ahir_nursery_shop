@@ -10,7 +10,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply nature-care --local",
     "import": "tsx scripts/import.ts",
-    "maps": "tsx scripts/generate-maps.ts"
+    "maps": "tsx scripts/generate-maps.ts",
+    "admin-password": "tsx scripts/admin-password.ts"
   },
   "dependencies": {
     "hono": "^4.13.19"

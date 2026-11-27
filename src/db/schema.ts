@@ -180,3 +180,10 @@ export const catalogVersion = sqliteTable("catalog_version", {
   id: integer("id").primaryKey(),
   token: text("token").notNull(),
 });
+
+// One row per wrong admin password; the login refuses an address with 10 rows in the last 15 minutes.
+export const loginFailures = sqliteTable("login_failures", {
+  id: integer("id").primaryKey(),
+  ip: text("ip").notNull(),
+  at: integer("at").notNull(), // unix seconds
+}, (t) => [index("login_failures_ip_at_idx").on(t.ip, t.at)]);

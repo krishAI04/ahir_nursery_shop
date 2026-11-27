@@ -140,7 +140,7 @@ describe("requireStaff on /admin", () => {
     const res = await admin.request("/admin", {}, env());
     expect(res.status).toBe(403);
     const html = await res.text();
-    expect(html).toContain("You don't have access. Ask the owner to add your email.");
+    expect(html).toContain('action="/admin/login"');
     expect(res.headers.get("cache-control")).toBe("no-store");
   });
 

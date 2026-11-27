@@ -85,6 +85,9 @@ export function mountHelp(admin: AdminApp) {
           </section>
         ))}
         <p class="who">Signed in as {c.var.staffEmail}</p>
+        <form method="post" action="/admin/logout">
+          <button type="submit">Sign out</button>
+        </form>
       </Layout>,
     ),
   );
