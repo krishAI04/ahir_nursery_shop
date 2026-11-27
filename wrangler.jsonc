@@ -16,7 +16,7 @@
   "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "nature-care-photos" }],
   "vars": {
     "ENVIRONMENT": "production",
-    "STOREFRONT_ORIGINS": "https://nature-care.pages.dev",
+    "STOREFRONT_ORIGINS": "https://natureecarenursery.in, https://www.natureecarenursery.in, https://nature-care.pages.dev",
     "ACCESS_TEAM_DOMAIN": "",
     "ACCESS_AUD": "",
     // Shared staff username for the admin sign-in. The password is the secret ADMIN_PASSWORD_HASH (npm run admin-password).
