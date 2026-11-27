@@ -1,7 +1,7 @@
 import { raw } from "hono/html";
 import type { Env } from "../env";
 import { imageUrl } from "../lib/images";
-import { Layout } from "./layout";
+import { Layout, scriptNonce } from "./layout";
 import { Notice, type Category } from "./products";
 import { categoryPickerScript } from "./static/category-picker";
 import { uploaderScript } from "./static/uploader";
@@ -455,9 +455,9 @@ export function ProductPage(p: {
         <Sizes v={p.v} form={f} />
       </section>
       <Info source={p.v.source} />
-      <script>{raw(uploaderScript)}</script>
-      <script>{raw(categoryPickerScript)}</script>
-      <script>{raw(pageScript)}</script>
+      <script nonce={scriptNonce()}>{raw(uploaderScript)}</script>
+      <script nonce={scriptNonce()}>{raw(categoryPickerScript)}</script>
+      <script nonce={scriptNonce()}>{raw(pageScript)}</script>
     </Layout>
   );
 }

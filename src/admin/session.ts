@@ -72,11 +72,36 @@ export function crossSitePost(c: Context): boolean {
   return (origin !== undefined && origin !== new URL(c.req.url).origin) || c.req.header("Sec-Fetch-Site") === "cross-site";
 }
 
-/** Every admin response: never cached, never framed, no referrer to other sites. */
-export const setSecurityHeaders = (h: Headers) => {
+const origin = (u: string) => {
+  try {
+    return u ? new URL(u).origin : "";
+  } catch {
+    return "";
+  }
+};
+
+/** The admin's Content-Security-Policy. Scripts run only with this response's nonce; without one (the sign-in page) none run. */
+export function adminCsp(nonce: string, imageBase = ""): string {
+  return [
+    "default-src 'none'",
+    nonce ? `script-src 'nonce-${nonce}'` : "script-src 'none'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src https://fonts.gstatic.com",
+    `img-src 'self' data: blob: ${origin(imageBase)}`.trim(),
+    "connect-src 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "base-uri 'none'",
+  ].join("; ");
+}
+
+/** Every admin response: never cached, never framed, no referrer to other sites, scripts only with the nonce. */
+export const setSecurityHeaders = (h: Headers, csp: { nonce?: string; imageBase?: string } = {}) => {
   h.set("Cache-Control", "no-store");
   h.set("X-Frame-Options", "DENY");
   h.set("Referrer-Policy", "same-origin");
+  h.set("X-Content-Type-Options", "nosniff");
+  h.set("Content-Security-Policy", adminCsp(csp.nonce ?? "", csp.imageBase));
 };
 
 export const loginPage = (message?: string) =>

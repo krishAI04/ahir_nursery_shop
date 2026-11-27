@@ -4,7 +4,9 @@ import type { Child } from "hono/jsx";
 import { HelpSheet, Icon, Tip, adminCss, iconSprite, shellScript, type IconName } from "./ui";
 
 /** Set per request by the admin middleware so every page shows the Publish button without passing it down. */
-export const adminRequest = new AsyncLocalStorage<{ canPublish: boolean }>();
+export const adminRequest = new AsyncLocalStorage<{ canPublish: boolean; nonce: string }>();
+/** This response's script nonce (see adminCsp); every inline <script> must carry it. */
+export const scriptNonce = () => adminRequest.getStore()?.nonce ?? "";
 
 type Active = "products" | "needs-photo" | "photo" | "publish" | "help";
 type MenuItem = { href: string; icon: IconName; label: string; side: string; active?: Active };
@@ -133,7 +135,7 @@ export function Layout(props: {
               ))}
           </nav>
           {props.help && <HelpSheet title={props.help.title} steps={props.help.steps} email={props.email} />}
-          <script>{raw(shellScript)}</script>
+          <script nonce={scriptNonce()}>{raw(shellScript)}</script>
         </body>
       </html>
     </>
