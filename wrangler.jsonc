@@ -31,7 +31,7 @@
     "ADMIN_HOST": "admin.natureecarenursery.in",
     // Store reads shared at the edge for 2 minutes; the site build bypasses it (src/lib/edge-cache.ts).
     "EDGE_CACHE": "on",
-    "IMAGE_BASE_URL": "https://api.natureecarenursery.in/img/",
+    "IMAGE_BASE_URL": "https://images.natureecarenursery.in/",
     // Shop WhatsApp number for price enquiries: country code + number, digits only (e.g. 9198XXXXXXXX). Set before go-live.
     "SHOP_WHATSAPP": "918817722220",
     // Pages publishing. PAGES_DEPLOY_HOOK and CF_API_TOKEN are secrets (see README), not vars.
